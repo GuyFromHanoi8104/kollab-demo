@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import TransactionalHeader from "../components/TransactionalHeader";
 
@@ -110,10 +110,12 @@ function RoleCard({ role, label, icon, selected, onSelect }) {
   );
 }
 
-function SocialButton({ icon, label }) {
+function SocialButton({ icon, label, onClick, disabled }) {
   return (
     <button
       type="button"
+      onClick={onClick}
+      disabled={disabled}
       style={{
         background: "white",
         border: "1px solid #c3c6d7",
@@ -125,7 +127,8 @@ function SocialButton({ icon, label }) {
         padding: "13px 25px",
         width: "100%",
         boxSizing: "border-box",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       {icon}
@@ -154,8 +157,19 @@ function Footer() {
 
 export default function SignUp() {
   const [role, setRole] = useState(null); // null | "creator" | "brand"
+  const navigate = useNavigate();
 
   const subtext = role ? ROLE_SUBTEXT[role] : ROLE_SUBTEXT.none;
+
+  // Mock signup -- no real backend yet. This is the ONE place role gets
+  // chosen; from here on, Login just remembers it, matching how a real
+  // account system would work (you don't re-pick your role every login).
+  const handleGoogleSignup = () => {
+    if (!role) return; // button is disabled until a role is picked, but guard anyway
+    sessionStorage.setItem("kollab_mock_logged_in", "true");
+    sessionStorage.setItem("kollab_mock_role", role);
+    navigate("/");
+  };
 
   return (
     <div
@@ -224,7 +238,7 @@ export default function SignUp() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
-              <SocialButton icon={<GoogleIcon />} label="Continue with Google" />
+              <SocialButton icon={<GoogleIcon />} label="Continue with Google" onClick={handleGoogleSignup} disabled={!role} />
               <SocialButton icon={<InstagramIcon />} label="Continue with Instagram" />
               <SocialButton icon={<TikTokIcon />} label="Continue with TikTok" />
             </div>

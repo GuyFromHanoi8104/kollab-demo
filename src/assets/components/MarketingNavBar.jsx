@@ -24,7 +24,10 @@ const NAV_LINKS = [
 ];
 
 // activeTab: "explore" | "campaigns" | "kols"
-export default function MarketingNavBar({ activeTab, isLoggedIn = false }) {
+export default function MarketingNavBar({ activeTab, isLoggedIn = false, role = "brand" }) {
+  const profileDestination = role === "creator" ? "/my-profile" : "/dashboard";
+  const profileName = role === "creator" ? "Mai Tran" : "Kollab Demo";
+  const profileInitial = role === "creator" ? "M" : "K";
   return (
     <div
       style={{
@@ -72,12 +75,12 @@ export default function MarketingNavBar({ activeTab, isLoggedIn = false }) {
               <BellIcon color={colors.gray} />
               <span style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 9999, background: "#ba1a1a", boxShadow: "0 0 0 2px #f8f9ff" }} />
             </div>
-            <Link to="/dashboard" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none" }}>
+            <Link to={profileDestination} style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none" }}>
               <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontWeight: 700, color: "#1550d3", fontSize: 14 }}>K</span>
+                <span style={{ fontWeight: 700, color: "#1550d3", fontSize: 14 }}>{profileInitial}</span>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ color: "#0b1c30", fontSize: 14, fontWeight: 500 }}>Kollab Demo</div>
+                <div style={{ color: "#0b1c30", fontSize: 14, fontWeight: 500 }}>{profileName}</div>
                 <div style={{ color: "#737686", fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase" }}>Premium Plan</div>
               </div>
             </Link>

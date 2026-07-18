@@ -281,8 +281,10 @@ export default function LandingPage() {
   // back here. Swap this for real auth state (e.g. from a context/provider)
   // once login actually exists.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState("brand");
   useEffect(() => {
-    setIsLoggedIn(localStorage.getItem("kollab_mock_logged_in") === "true");
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
+    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
   }, []);
 
   return (
@@ -318,7 +320,7 @@ export default function LandingPage() {
         }
       `}</style>
 
-      <MarketingNavBar activeTab="explore" isLoggedIn={isLoggedIn} />
+      <MarketingNavBar activeTab="explore" isLoggedIn={isLoggedIn} role={role} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 48, width: "100%", maxWidth: 1200, padding: "0 40px", boxSizing: "border-box" }}>
         {/* Main content, 8 cols */}

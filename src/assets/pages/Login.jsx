@@ -114,11 +114,14 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
-  // Mock login -- no real backend/auth yet. Sets a flag LandingPage.jsx
-  // reads to switch into its logged-in header state, then sends the user
-  // there. Replace with real OAuth + session handling later.
+  // Mock login -- no real backend/auth yet. A real system would already
+  // know the account's role; here, that's whatever was set the last time
+  // someone completed Sign Up (see SignUp.jsx). Defaults to "brand" only
+  // for the edge case of hitting Login before ever signing up.
   const handleGoogleLogin = () => {
-    localStorage.setItem("kollab_mock_logged_in", "true");
+    const existingRole = sessionStorage.getItem("kollab_mock_role") || "brand";
+    sessionStorage.setItem("kollab_mock_logged_in", "true");
+    sessionStorage.setItem("kollab_mock_role", existingRole);
     navigate("/");
   };
 

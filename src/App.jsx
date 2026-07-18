@@ -11,6 +11,7 @@ import ManageCampaigns from "./assets/pages/ManageCampaigns";
 import Settings from "./assets/pages/Settings";
 import SavedCreators from "./assets/pages/SavedCreators";
 import Messages from "./assets/pages/Messages";
+import MyProfile from "./assets/pages/MyProfile";
 import ProtectedRoute from "./assets/components/ProtectedRoute";
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/saved" element={<ProtectedRoute><SavedCreators /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+        <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

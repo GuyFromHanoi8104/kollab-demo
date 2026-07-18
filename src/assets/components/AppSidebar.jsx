@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import KollabLogo from "./KollabLogo";
 import { appColors } from "./appColors";
@@ -58,11 +59,31 @@ function SettingsIcon({ color }) {
   );
 }
 
-const NAV_ITEMS = [
+function UserIcon({ color }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="6" r="3.5" stroke={color} strokeWidth="1.5" />
+      <path d="M2.5 16c1-3.5 4-5 6.5-5s5.5 1.5 6.5 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const BRAND_NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", to: "/dashboard", Icon: GridIcon },
   { key: "discover", label: "Discover Creators", to: "/discover", Icon: SearchIcon },
   { key: "campaigns", label: "Campaigns", to: "/manage-campaigns", Icon: MegaphoneIcon },
   { key: "saved", label: "Saved Creators", to: "/saved", Icon: BookmarkIcon },
+  { key: "messages", label: "Messages", to: "/messages", Icon: MessageIcon },
+];
+
+// NOTE: no "Saved Brands" page exists yet, so it's intentionally left out of
+// this nav rather than linking somewhere that doesn't fit. Worth adding
+// later, mirroring Saved Creators.
+const CREATOR_NAV_ITEMS = [
+  { key: "profile", label: "My Profile", to: "/my-profile", Icon: UserIcon },
+  { key: "discover", label: "Discover Creators", to: "/discover", Icon: SearchIcon },
+  { key: "discover-brands", label: "Discover Brands", to: "/discover-brands", Icon: SearchIcon },
+  { key: "campaigns", label: "Campaigns", to: "/campaigns", Icon: MegaphoneIcon },
   { key: "messages", label: "Messages", to: "/messages", Icon: MessageIcon },
 ];
 
@@ -89,8 +110,17 @@ function NavLink({ to, label, Icon, active }) {
   );
 }
 
-// activeItem: "dashboard" | "discover" | "campaigns" | "saved" | "messages" | "settings"
-export default function AppSidebar({ activeItem }) {
+// activeItem depends on role -- brand: "dashboard"|"discover"|"campaigns"|"saved"|"messages"|"settings"
+// creator: "profile"|"discover"|"discover-brands"|"campaigns"|"messages"|"settings"
+// role: "brand" (default) | "creator"
+export default function AppSidebar({ activeItem, role = "brand" }) {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  useEffect(() => {
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
+  }, []);
+
+  const NAV_ITEMS = role === "creator" ? CREATOR_NAV_ITEMS : BRAND_NAV_ITEMS;
+
   return (
     <aside
       style={{
@@ -129,13 +159,15 @@ export default function AppSidebar({ activeItem }) {
         <NavLink to="/settings" label="Settings" Icon={SettingsIcon} active={activeItem === "settings"} />
 
         {/* Static placeholder -- wire to real account/usage data later */}
-        <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <span style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24 }}>PRO PLAN</span>
-          <div style={{ background: appColors.border, height: 6, borderRadius: 9999, overflow: "hidden" }}>
-            <div style={{ background: appColors.primary, height: "100%", width: "75%" }} />
+        {isLoggedIn && (
+          <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            <span style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24 }}>PRO PLAN</span>
+            <div style={{ background: appColors.border, height: 6, borderRadius: 9999, overflow: "hidden" }}>
+              <div style={{ background: appColors.primary, height: "100%", width: "75%" }} />
+            </div>
+            <span style={{ color: appColors.gray, fontSize: 11, fontStyle: "italic" }}>750 of 1000 searches used</span>
           </div>
-          <span style={{ color: appColors.gray, fontSize: 11, fontStyle: "italic" }}>750 of 1000 searches used</span>
-        </div>
+        )}
       </div>
     </aside>
   );
