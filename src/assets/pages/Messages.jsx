@@ -4,16 +4,16 @@ import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 
 const CONVERSATIONS = [
-  { id: "linh", name: "Linh Nguyen", initial: "L", campaign: "Protein Powder Launch", unread: true },
+  { id: "hoangyen", name: "Hoang Yen", initial: "H", campaign: "Protein Powder Launch", unread: true },
   { id: "minh", name: "Minh Review", initial: "M", campaign: "New Gen Gaming Headset Review", unread: false },
   { id: "thanh", name: "Thanh Beauty", initial: "T", campaign: "Glow Morning Routine Reel", unread: true },
   { id: "khoa", name: "Khoa Fitness", initial: "K", campaign: "Healthy Snacks", unread: false },
 ];
 
 const INITIAL_THREADS = {
-  linh: [
+  hoangyen: [
     { from: "them", text: "Hi! Thanks for the invite to the Protein Powder Launch campaign.", time: "10:03 AM" },
-    { from: "me", text: "Of course! We loved your recent skincare content, think you'd be a great fit.", time: "10:05 AM" },
+    { from: "me", text: "Of course! We loved your recent food content, think you'd be a great fit.", time: "10:05 AM" },
     { from: "them", text: "Sounds great! I can start filming next week.", time: "10:07 AM" },
   ],
   minh: [

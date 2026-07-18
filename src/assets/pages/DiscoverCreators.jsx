@@ -45,16 +45,16 @@ const CREATORS = [
     initial: "K",
   },
   {
-    id: "linh",
-    name: "Linh Nguyen",
-    handle: "@linh.kitchen",
+    id: "bao",
+    name: "Bao Tran",
+    handle: "@bao.kitchen",
     tags: ["Food", "Lifestyle"],
     statLabel: "FOLLOWERS (TOTAL)",
     statValue: "410K",
     engagement: "7.1%",
     avgViews: "95K Avg. Views",
     location: "Da Nang, VN",
-    initial: "L",
+    initial: "B",
   },
 ];
 
@@ -243,7 +243,7 @@ export default function DiscoverCreators() {
   // logged out rather than shown empty/fake.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   useEffect(() => {
-    setIsLoggedIn(localStorage.getItem("kollab_mock_logged_in") === "true");
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
   }, []);
 
   const toggleCompare = (id) => {

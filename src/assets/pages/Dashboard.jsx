@@ -54,12 +54,12 @@ const RECOMMENDED_CREATORS = [
 ];
 
 const APPLICATIONS = [
-  { name: "Linh Nguyen", category: "Food & Beverage", followers: "126K", following: "32K", er: "7.8%", badge: "NEW", badgeBg: "#dce1ff", badgeColor: appColors.primary, initial: "L" },
+  { name: "Hoang Yen", category: "Food & Beverage", followers: "126K", following: "32K", er: "7.8%", badge: "NEW", badgeBg: "#dce1ff", badgeColor: appColors.primary, initial: "H" },
   { name: "Duc Tran", category: "Tech & Fitness", followers: "54K", following: "12K", er: "4.2%", badge: "2D AGO", badgeBg: appColors.primaryLight, badgeColor: appColors.grayLight, initial: "D" },
 ];
 
 const ACTIVITY = [
-  { title: "Linh Nguyen", detail: "Applied to Protein Powder Launch", time: "2 hours ago", dot: appColors.primary },
+  { title: "Hoang Yen", detail: "Applied to Protein Powder Launch", time: "2 hours ago", dot: appColors.primary },
   { title: "Campaign Milestone", detail: "Healthy Snacks reached 50k reach", time: "5 hours ago", dot: "#712ae2" },
   { title: "Account Security", detail: "New login detected from Ho Chi Minh City", time: "Yesterday", dot: appColors.border, dim: true },
 ];
