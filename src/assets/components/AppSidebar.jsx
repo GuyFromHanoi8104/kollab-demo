@@ -58,12 +58,25 @@ function SettingsIcon({ color }) {
     </svg>
   );
 }
-
 function UserIcon({ color }) {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <circle cx="9" cy="6" r="3.5" stroke={color} strokeWidth="1.5" />
       <path d="M2.5 16c1-3.5 4-5 6.5-5s5.5 1.5 6.5 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+function HamburgerIcon() {
+  return (
+    <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+      <path d="M1 1h18M1 8h18M1 15h18" stroke={appColors.navy} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M2 2l14 14M16 2L2 16" stroke={appColors.navy} strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -87,10 +100,11 @@ const CREATOR_NAV_ITEMS = [
   { key: "messages", label: "Messages", to: "/messages", Icon: MessageIcon },
 ];
 
-function NavLink({ to, label, Icon, active }) {
+function NavLink({ to, label, Icon, active, onNavigate }) {
   return (
     <Link
       to={to}
+      onClick={onNavigate}
       style={{
         display: "flex",
         gap: 12,
@@ -115,60 +129,116 @@ function NavLink({ to, label, Icon, active }) {
 // role: "brand" (default) | "creator"
 export default function AppSidebar({ activeItem, role = "brand" }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
   }, []);
 
   const NAV_ITEMS = role === "creator" ? CREATOR_NAV_ITEMS : BRAND_NAV_ITEMS;
+  const closeMobile = () => setMobileOpen(false);
 
   return (
-    <aside
-      style={{
-        position: "fixed",
-        left: 0,
-        top: 0,
-        height: "100vh",
-        width: 256,
-        background: "white",
-        borderRight: `1px solid ${appColors.border}`,
-        display: "flex",
-        flexDirection: "column",
-        padding: "16px 17px 16px 16px",
-        boxSizing: "border-box",
-        zIndex: 10,
-      }}
-    >
-      <Link to="/" style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 16px", marginBottom: 24, textDecoration: "none" }}>
-        <KollabLogo size={40} />
-        <span style={{ fontWeight: 800, color: "#191c1e", fontSize: 24, letterSpacing: -0.6 }}>Kollab</span>
-      </Link>
+    <>
+      <style>{`
+        .kollab-sidebar-toggle {
+          display: none;
+        }
+        .kollab-sidebar-backdrop {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .kollab-sidebar {
+            transform: translateX(-100%);
+            transition: transform 250ms ease-out;
+            box-shadow: 0px 0px 40px rgba(0,0,0,0.15);
+          }
+          .kollab-sidebar.kollab-sidebar-open {
+            transform: translateX(0);
+          }
+          .kollab-sidebar-toggle {
+            display: flex !important;
+          }
+          .kollab-sidebar-backdrop.kollab-sidebar-backdrop-open {
+            display: block;
+          }
+        }
+      `}</style>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, overflowY: "auto" }}>
-        {NAV_ITEMS.map((item) => (
-          <NavLink key={item.key} to={item.to} label={item.label} Icon={item.Icon} active={activeItem === item.key} />
-        ))}
+      {/* Hamburger toggle -- only rendered visible via CSS on mobile, since
+          it's positioned fixed and needs to sit above the page content
+          regardless of which page renders this component. */}
+      <button
+        type="button"
+        className="kollab-sidebar-toggle"
+        onClick={() => setMobileOpen((v) => !v)}
+        aria-label={mobileOpen ? "Close menu" : "Open menu"}
+        style={{
+          position: "fixed", top: 16, left: 16, zIndex: 30,
+          background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12,
+          width: 44, height: 44, alignItems: "center", justifyContent: "center", cursor: "pointer",
+          boxShadow: "0px 4px 6px -1px rgba(0,0,0,0.1)",
+        }}
+      >
+        {mobileOpen ? <CloseIcon /> : <HamburgerIcon />}
+      </button>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", marginTop: 12, opacity: 0.5 }}>
-          <AnalyticsIcon color={appColors.gray} />
-          <span style={{ color: appColors.gray, fontSize: 16 }}>Analytics </span>
-          <span style={{ color: appColors.gray, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>Coming</span>
-        </div>
-      </nav>
+      {/* Backdrop -- tapping it closes the drawer, same pattern as every
+          other modal in the app. */}
+      <div
+        className={`kollab-sidebar-backdrop ${mobileOpen ? "kollab-sidebar-backdrop-open" : ""}`}
+        onClick={closeMobile}
+        style={{ position: "fixed", inset: 0, background: "rgba(11,28,48,0.4)", zIndex: 19 }}
+      />
 
-      <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
-        <NavLink to="/settings" label="Settings" Icon={SettingsIcon} active={activeItem === "settings"} />
+      <aside
+        className={`kollab-sidebar ${mobileOpen ? "kollab-sidebar-open" : ""}`}
+        style={{
+          position: "fixed",
+          left: 0,
+          top: 0,
+          height: "100vh",
+          width: 256,
+          background: "white",
+          borderRight: `1px solid ${appColors.border}`,
+          display: "flex",
+          flexDirection: "column",
+          padding: "16px 17px 16px 16px",
+          boxSizing: "border-box",
+          zIndex: 20,
+        }}
+      >
+        <Link to="/" onClick={closeMobile} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 16px", marginBottom: 24, textDecoration: "none" }}>
+          <KollabLogo size={40} />
+          <span style={{ fontWeight: 800, color: "#191c1e", fontSize: 24, letterSpacing: -0.6 }}>Kollab</span>
+        </Link>
 
-        {/* Static placeholder -- wire to real account/usage data later */}
-        {isLoggedIn && (
-          <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-            <span style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24 }}>PRO PLAN</span>
-            <div style={{ background: appColors.border, height: 6, borderRadius: 9999, overflow: "hidden" }}>
-              <div style={{ background: appColors.primary, height: "100%", width: "75%" }} />
-            </div>
-            <span style={{ color: appColors.gray, fontSize: 11, fontStyle: "italic" }}>750 of 1000 searches used</span>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, overflowY: "auto" }}>
+          {NAV_ITEMS.map((item) => (
+            <NavLink key={item.key} to={item.to} label={item.label} Icon={item.Icon} active={activeItem === item.key} onNavigate={closeMobile} />
+          ))}
+
+          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", marginTop: 12, opacity: 0.5 }}>
+            <AnalyticsIcon color={appColors.gray} />
+            <span style={{ color: appColors.gray, fontSize: 16 }}>Analytics </span>
+            <span style={{ color: appColors.gray, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>Coming</span>
           </div>
-        )}
-      </div>
-    </aside>
+        </nav>
+
+        <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
+          <NavLink to="/settings" label="Settings" Icon={SettingsIcon} active={activeItem === "settings"} onNavigate={closeMobile} />
+
+          {/* Static placeholder -- wire to real account/usage data later */}
+          {isLoggedIn && (
+            <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+              <span style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24 }}>PRO PLAN</span>
+              <div style={{ background: appColors.border, height: 6, borderRadius: 9999, overflow: "hidden" }}>
+                <div style={{ background: appColors.primary, height: "100%", width: "75%" }} />
+              </div>
+              <span style={{ color: appColors.gray, fontSize: 11, fontStyle: "italic" }}>750 of 1000 searches used</span>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

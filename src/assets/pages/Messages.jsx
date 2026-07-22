@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
@@ -38,11 +38,29 @@ function SendIcon() {
     </svg>
   );
 }
+function BackIcon({ color }) {
+  return (
+    <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+      <path d="M8 1L1 8l7 7M1 8h18" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function Messages() {
   const [threads, setThreads] = useState(INITIAL_THREADS);
   const [activeId, setActiveId] = useState(CONVERSATIONS[0].id);
   const [draft, setDraft] = useState("");
+  const [mobileShowThread, setMobileShowThread] = useState(false);
+
+  const [role, setRole] = useState("brand");
+  useEffect(() => {
+    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
+  }, []);
+
+  const handleSelectConvo = (id) => {
+    setActiveId(id);
+    setMobileShowThread(true);
+  };
 
   const activeConvo = CONVERSATIONS.find((c) => c.id === activeId);
   const activeMessages = threads[activeId] || [];
@@ -75,14 +93,38 @@ export default function Messages() {
         }
         .kollab-scroll-col::-webkit-scrollbar { width: 6px; }
         .kollab-scroll-col::-webkit-scrollbar-thumb { background: ${appColors.border}; border-radius: 9999px; }
+        .kollab-messages-back-btn {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .kollab-messages-main {
+            margin-left: 0 !important;
+          }
+          .kollab-messages-list {
+            width: 100% !important;
+          }
+          .kollab-messages-list-hidden {
+            display: none !important;
+          }
+          .kollab-messages-thread-hidden {
+            display: none !important;
+          }
+          .kollab-messages-back-btn {
+            display: flex !important;
+          }
+        }
       `}</style>
 
-      <AppSidebar activeItem="messages" />
-      <AppTopBar left={<Breadcrumb text="Workspace /" current="Messages" />} />
+      <AppSidebar activeItem="messages" role={role} />
+      <AppTopBar
+        left={<Breadcrumb text="Workspace /" current="Messages" />}
+        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
+        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
+      />
 
-      <main style={{ marginLeft: 256, paddingTop: 64, height: "100vh", boxSizing: "border-box", display: "flex" }}>
+      <main className="kollab-messages-main" style={{ marginLeft: 256, paddingTop: 64, height: "100vh", boxSizing: "border-box", display: "flex" }}>
         {/* Conversation list */}
-        <aside className="kollab-scroll-col" style={{ width: 320, flexShrink: 0, borderRight: `1px solid ${appColors.border}`, background: "white", overflowY: "auto" }}>
+        <aside className={`kollab-scroll-col kollab-messages-list ${mobileShowThread ? "kollab-messages-list-hidden" : ""}`} style={{ width: 320, flexShrink: 0, borderRight: `1px solid ${appColors.border}`, background: "white", overflowY: "auto" }}>
           <div style={{ padding: "24px 24px 16px 24px" }}>
             <h1 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, margin: 0 }}>Messages</h1>
           </div>
@@ -94,10 +136,11 @@ export default function Messages() {
                 <button
                   key={convo.id}
                   type="button"
-                  onClick={() => setActiveId(convo.id)}
+                  onClick={() => handleSelectConvo(convo.id)}
                   style={{
                     display: "flex", gap: 12, alignItems: "flex-start", padding: "16px 24px", border: "none", cursor: "pointer", textAlign: "left",
                     background: isActive ? appColors.primaryLighter : "transparent", borderLeft: isActive ? `3px solid ${appColors.primary}` : "3px solid transparent",
+                    transition: "background-color 200ms ease-out, border-color 200ms ease-out",
                   }}
                 >
                   <div style={{ position: "relative", flexShrink: 0 }}>
@@ -124,8 +167,17 @@ export default function Messages() {
         </aside>
 
         {/* Thread */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div className={`kollab-messages-thread ${!mobileShowThread ? "kollab-messages-thread-hidden" : ""}`} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ padding: "20px 32px", borderBottom: `1px solid ${appColors.border}`, background: "white", display: "flex", gap: 12, alignItems: "center" }}>
+            <button
+              type="button"
+              className="kollab-messages-back-btn"
+              onClick={() => setMobileShowThread(false)}
+              aria-label="Back to conversations"
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            >
+              <BackIcon color={appColors.navy} />
+            </button>
             <div style={{ background: "#e2e8f0", width: 40, height: 40, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight }}>
               {activeConvo.initial}
             </div>

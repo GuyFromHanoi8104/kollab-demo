@@ -140,7 +140,7 @@ function SocialButton({ icon, label, onClick, disabled }) {
 function Footer() {
   return (
     <footer style={{ backdropFilter: "blur(6px)", background: "rgba(255,255,255,0.3)", borderTop: "1px solid rgba(195,198,215,0.1)", width: "100%" }}>
-      <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "64px 40px", flexWrap: "wrap", gap: 40, boxSizing: "border-box" }}>
+      <div className="kollab-signup-footer-inner" style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "64px 40px", flexWrap: "wrap", gap: 40, boxSizing: "border-box" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <KollabLogo size={32} />
@@ -199,14 +199,30 @@ export default function SignUp() {
         .kollab-signup, .kollab-signup *, .kollab-signup *::before, .kollab-signup *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-signup-wrapper {
+            padding: 40px 16px !important;
+          }
+          .kollab-signup-card {
+            padding: 24px !important;
+          }
+          .kollab-signup-heading {
+            font-size: 32px !important;
+            line-height: 40px !important;
+          }
+          .kollab-signup-footer-inner {
+            padding: 40px 24px !important;
+            gap: 32px !important;
+          }
+        }
       `}</style>
 
       <TransactionalHeader mode="signup" />
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "80px 24px" }}>
+      <div className="kollab-signup-wrapper" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "80px 24px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 32, alignItems: "flex-start", maxWidth: 512, width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center", width: "100%" }}>
-            <h1 style={{ fontWeight: 700, color: colors.navy, fontSize: 48, lineHeight: "56px", letterSpacing: -0.48, textAlign: "center", margin: 0 }}>
+            <h1 className="kollab-signup-heading" style={{ fontWeight: 700, color: colors.navy, fontSize: 48, lineHeight: "56px", letterSpacing: -0.48, textAlign: "center", margin: 0 }}>
               Create your account
             </h1>
             <p style={{ color: colors.gray, fontSize: 18, lineHeight: "28px", textAlign: "center", margin: 0 }}>
@@ -215,6 +231,7 @@ export default function SignUp() {
           </div>
 
           <div
+            className="kollab-signup-card"
             style={{
               background: "rgba(255,255,255,0)",
               border: "1px solid #c3c6d7",

@@ -135,6 +135,13 @@ function EditIcon({ color }) {
     </svg>
   );
 }
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M2 2l14 14M16 2L2 16" stroke={appColors.gray} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 function ArrowRight({ color }) {
   return (
     <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
@@ -186,11 +193,28 @@ function InvitationCard({ invite, onRespond }) {
 export default function MyProfile() {
   const [invitations, setInvitations] = useState(INITIAL_INVITATIONS);
   const [respondedLog, setRespondedLog] = useState([]);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
+  const [bio, setBio] = useState(PROFILE.bio);
+  const [quickNote, setQuickNote] = useState(PROFILE.quickNote);
 
   const handleRespond = (id, decision) => {
     const invite = invitations.find((i) => i.id === id);
     setInvitations((prev) => prev.filter((i) => i.id !== id));
     setRespondedLog((prev) => [...prev, { ...invite, decision }]);
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleSaveProfile = () => {
+    setEditModalOpen(false);
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 2500);
   };
 
   return (
@@ -205,6 +229,36 @@ export default function MyProfile() {
         .kollab-my-profile, .kollab-my-profile *, .kollab-my-profile *::before, .kollab-my-profile *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-my-profile-main {
+            margin-left: 0 !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 80px !important;
+          }
+          .kollab-my-profile-split {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-my-profile-hero {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          .kollab-my-profile-info-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-my-profile-stats {
+            grid-template-columns: 1fr 1fr !important;
+          }
+          .kollab-my-profile-portfolio {
+            grid-template-columns: 1fr 1fr !important;
+          }
+          .kollab-my-profile-insights-row {
+            flex-direction: column !important;
+          }
+          .kollab-my-profile-edit-modal {
+            padding: 20px !important;
+          }
+        }
         .kollab-scroll-row {
           scrollbar-width: thin;
           scrollbar-color: ${appColors.border} transparent;
@@ -217,12 +271,12 @@ export default function MyProfile() {
       <AppSidebar activeItem="profile" role="creator" />
       <AppTopBar left={<Breadcrumb text="Workspace /" current="My Profile" />} userName={PROFILE.name} plan="CREATOR PLAN" />
 
-      <main style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>
+      <main className="kollab-my-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
+        <div className="kollab-my-profile-split" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>
           {/* Left column */}
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 33, boxShadow: "0px 20px 40px -10px rgba(79,124,255,0.08)" }}>
-              <div style={{ display: "flex", gap: 32 }}>
+              <div className="kollab-my-profile-hero" style={{ display: "flex", gap: 32 }}>
                 <AvatarPlaceholder size={160} radius={20} label="M" />
 
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -236,9 +290,9 @@ export default function MyProfile() {
                     </div>
                   </div>
 
-                  <p style={{ color: appColors.gray, fontSize: 16, lineHeight: "26px", margin: 0, maxWidth: 672 }}>{PROFILE.bio}</p>
+                  <p style={{ color: appColors.gray, fontSize: 16, lineHeight: "26px", margin: 0, maxWidth: 672 }}>{bio}</p>
 
-                  <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div className="kollab-my-profile-info-grid" style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}><LocationIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE.location}</span></div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}><GlobeIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE.languages}</span></div>
@@ -252,7 +306,7 @@ export default function MyProfile() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+            <div className="kollab-my-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
               {STATS.map((stat) => (
                 <StatCard key={stat.label} label={stat.label} value={stat.value} color={stat.color} />
               ))}
@@ -285,7 +339,8 @@ export default function MyProfile() {
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>My Applications</h3>
               <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div className="kollab-scroll-row" style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", minWidth: 500, borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: appColors.primaryLighter, borderBottom: `1px solid ${appColors.border}` }}>
                       {["BRAND", "CAMPAIGN", "APPLIED ON", "STATUS"].map((h) => (
@@ -309,10 +364,11 @@ export default function MyProfile() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 24 }}>
+            <div className="kollab-my-profile-insights-row" style={{ display: "flex", gap: 24 }}>
               <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
                 <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Audience Insights</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -383,7 +439,7 @@ export default function MyProfile() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Content Portfolio</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div className="kollab-my-profile-portfolio" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
                 {PORTFOLIO.map((item, i) => (
                   <div key={i} style={{ aspectRatio: "9/16", background: "linear-gradient(135deg, #cbd5e1, #94a3b8)", border: `1px solid ${appColors.border}`, borderRadius: 16, position: "relative", display: "flex", alignItems: "flex-end", padding: 16 }}>
                     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
@@ -399,26 +455,37 @@ export default function MyProfile() {
           {/* Right column -- sticky action card */}
           <div style={{ minWidth: 0 }}>
             <div style={{ position: "sticky", top: 96, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 25, boxShadow: "0px 20px 40px -10px rgba(79,124,255,0.08)", display: "flex", flexDirection: "column", gap: 32 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <div style={{ background: "#22c55e", width: 10, height: 10, borderRadius: 9999 }} />
                   <span style={{ color: "#22c55e", fontWeight: 700, fontSize: 14 }}>Available for campaigns</span>
                 </div>
-                <button type="button" aria-label="Share profile" style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 9999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <button type="button" onClick={handleShare} aria-label="Share profile" style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 9999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   <ShareIcon color={appColors.gray} />
                 </button>
+                {linkCopied && (
+                  <span style={{ position: "absolute", top: 46, right: 0, background: appColors.navy, color: "white", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 8, whiteSpace: "nowrap" }}>
+                    Link copied!
+                  </span>
+                )}
               </div>
 
-              <button
-                type="button"
-                style={{ background: appColors.primary, border: "none", borderRadius: 16, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", boxShadow: "0px 10px 15px -3px rgba(21,80,211,0.2), 0px 4px 6px -4px rgba(21,80,211,0.2)" }}
-              >
-                <EditIcon color="white" /> Edit Profile
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setEditModalOpen(true)}
+                  style={{ background: appColors.primary, border: "none", borderRadius: 16, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", boxShadow: "0px 10px 15px -3px rgba(21,80,211,0.2), 0px 4px 6px -4px rgba(21,80,211,0.2)" }}
+                >
+                  <EditIcon color="white" /> Edit Profile
+                </button>
+                {savedToast && (
+                  <div style={{ textAlign: "center", color: "#16a34a", fontSize: 13, fontWeight: 600 }}>Profile saved ✓</div>
+                )}
+              </div>
 
               <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 11 }}>
                 <span style={{ color: appColors.grayLight, fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>About My Ideal Campaigns</span>
-                <p style={{ color: appColors.gray, fontSize: 14, lineHeight: "23px", margin: 0, fontStyle: "italic" }}>&ldquo;{PROFILE.quickNote}&rdquo;</p>
+                <p style={{ color: appColors.gray, fontSize: 14, lineHeight: "23px", margin: 0, fontStyle: "italic" }}>&ldquo;{quickNote}&rdquo;</p>
               </div>
 
               {respondedLog.length > 0 && (
@@ -435,6 +502,41 @@ export default function MyProfile() {
           </div>
         </div>
       </main>
+
+      {editModalOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setEditModalOpen(false)} style={{ position: "absolute", inset: 0, background: appColors.navy, opacity: 0.45 }} />
+          <div className="kollab-my-profile-edit-modal" style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 480, padding: 32, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)", maxHeight: "85vh", overflowY: "auto", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 18 }}>Edit Profile</div>
+              <button type="button" onClick={() => setEditModalOpen(false)} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div>
+              <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Bio</label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={4}
+                style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
+              />
+            </div>
+            <div>
+              <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>About My Ideal Campaigns</label>
+              <textarea
+                value={quickNote}
+                onChange={(e) => setQuickNote(e.target.value)}
+                rows={3}
+                style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
+              />
+            </div>
+            <button type="button" onClick={handleSaveProfile} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
+              Save Changes
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

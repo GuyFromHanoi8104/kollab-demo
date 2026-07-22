@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import Footer from "../components/Footer";
+import ReviewApplicationModal from "../components/ReviewApplicationModal";
 
 function InstagramLogo() {
   return (
@@ -47,13 +49,13 @@ const CAMPAIGNS = [
 ];
 
 const RECOMMENDED_CREATORS = [
-  { name: "Thanh Huyen", role: "Wellness & Yoga", followers: "45.2K", engagement: "5.4%", initial: "T" },
-  { name: "Minh Tu", role: "Professional Athlete", followers: "120K", engagement: "3.2%", initial: "M" },
-  { name: "An Nguyen", role: "Lifestyle & Travel", followers: "89K", engagement: "6.1%", initial: "A" },
-  { name: "Bich Phuong", role: "Beauty Specialist", followers: "215K", engagement: "4.8%", initial: "B" },
+  { id: "thanh-huyen", name: "Thanh Huyen", role: "Wellness & Yoga", followers: "45.2K", engagement: "5.4%", initial: "T" },
+  { id: "minh-tu", name: "Minh Tu", role: "Professional Athlete", followers: "120K", engagement: "3.2%", initial: "M" },
+  { id: "an-nguyen", name: "An Nguyen", role: "Lifestyle & Travel", followers: "89K", engagement: "6.1%", initial: "A" },
+  { id: "bich-phuong", name: "Bich Phuong", role: "Beauty Specialist", followers: "215K", engagement: "4.8%", initial: "B" },
 ];
 
-const APPLICATIONS = [
+const INITIAL_APPLICATIONS = [
   { name: "Hoang Yen", category: "Food & Beverage", followers: "126K", following: "32K", er: "7.8%", badge: "NEW", badgeBg: "#dce1ff", badgeColor: appColors.primary, initial: "H" },
   { name: "Duc Tran", category: "Tech & Fitness", followers: "54K", following: "12K", er: "4.2%", badge: "2D AGO", badgeBg: appColors.primaryLight, badgeColor: appColors.grayLight, initial: "D" },
 ];
@@ -95,14 +97,17 @@ function CreatorCard({ creator }) {
           <div style={{ fontWeight: 700, color: appColors.primary, fontSize: 14 }}>{creator.engagement}</div>
         </div>
       </div>
-      <button type="button" style={{ background: appColors.primaryLighter, border: "none", borderRadius: 12, padding: "8px 0", fontWeight: 700, color: appColors.primary, fontSize: 14, cursor: "pointer" }}>
+      <Link
+        to={`/creator/${creator.id}`}
+        style={{ background: appColors.primaryLighter, borderRadius: 12, padding: "8px 0", fontWeight: 700, color: appColors.primary, fontSize: 14, textAlign: "center", textDecoration: "none", display: "block" }}
+      >
         View Profile
-      </button>
+      </Link>
     </div>
   );
 }
 
-function ApplicationCard({ app }) {
+function ApplicationCard({ app, onReview, saved, onToggleSave }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", flex: 1, minWidth: 0, padding: 24, display: "flex", gap: 16, alignItems: "center", boxSizing: "border-box" }}>
       <div style={{ background: "#e2e8f0", borderRadius: 16, width: 80, height: 80, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -122,11 +127,16 @@ function ApplicationCard({ app }) {
           <span style={{ fontWeight: 700, color: appColors.navy, fontSize: 12 }}>{app.er} ER</span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 16px", fontWeight: 700, color: "white", fontSize: 12, letterSpacing: 0.24, cursor: "pointer", flex: 1, whiteSpace: "nowrap" }}>
+          <button type="button" onClick={() => onReview(app)} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 16px", fontWeight: 700, color: "white", fontSize: 12, letterSpacing: 0.24, cursor: "pointer", flex: 1, whiteSpace: "nowrap" }}>
             Review Application
           </button>
-          <button type="button" aria-label="Save" style={{ background: appColors.primaryLighter, border: "none", borderRadius: 12, padding: "0 16px", cursor: "pointer" }}>
-            ♡
+          <button
+            type="button"
+            onClick={() => onToggleSave(app.name)}
+            aria-label="Save"
+            style={{ background: saved ? "#fee2e2" : appColors.primaryLighter, border: "none", borderRadius: 12, padding: "0 16px", cursor: "pointer", color: saved ? "#ba1a1a" : appColors.navy, transition: "background-color 200ms ease-out, color 200ms ease-out" }}
+          >
+            {saved ? "♥" : "♡"}
           </button>
         </div>
       </div>
@@ -135,6 +145,24 @@ function ApplicationCard({ app }) {
 }
 
 export default function Dashboard() {
+  const [applications, setApplications] = useState(INITIAL_APPLICATIONS);
+  const [reviewingApp, setReviewingApp] = useState(null);
+  const [savedApplications, setSavedApplications] = useState(new Set());
+
+  const toggleSaveApplication = (name) => {
+    setSavedApplications((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
+  const handleDecision = (name) => {
+    // Reviewed applications drop off the "recent" list, same pattern as
+    // Invitations on the creator side (MyProfile.jsx).
+    setApplications((prev) => prev.filter((a) => a.name !== name));
+  };
+
   return (
     <div
       className="kollab-dashboard"
@@ -169,12 +197,33 @@ export default function Dashboard() {
         .kollab-scroll-row::-webkit-scrollbar-track {
           background: transparent;
         }
+        @media (max-width: 768px) {
+          .kollab-dashboard-main {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 80px !important;
+          }
+          .kollab-dashboard-stats-row {
+            flex-direction: column !important;
+          }
+          .kollab-dashboard-split {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-dashboard-apps-row {
+            flex-direction: column !important;
+          }
+          .kollab-dashboard-aside {
+            display: none !important;
+          }
+        }
       `}</style>
 
       <AppSidebar activeItem="dashboard" />
       <AppTopBar left={<SearchBox placeholder="Search creators, campaigns, or keywords..." />} />
 
-      <main style={{ marginLeft: 256, marginRight: 320, paddingTop: 96, paddingBottom: 64, paddingLeft: 24, paddingRight: 24, display: "flex", flexDirection: "column", gap: 48, boxSizing: "border-box" }}>
+      <main className="kollab-dashboard-main" style={{ marginLeft: 256, marginRight: 320, paddingTop: 96, paddingBottom: 64, paddingLeft: 24, paddingRight: 24, display: "flex", flexDirection: "column", gap: 48, boxSizing: "border-box" }}>
         <div style={{ background: appColors.primary, borderRadius: 16, padding: 48, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", width: "100%", boxSizing: "border-box" }}>
           <h1 style={{ color: "white", fontSize: 30, lineHeight: "40px", fontWeight: 600, letterSpacing: -0.6, margin: 0 }}>
             Welcome back, Kollab Demo <span style={{ marginLeft: 4 }}>👋</span>
@@ -184,13 +233,13 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 24 }}>
+        <div className="kollab-dashboard-stats-row" style={{ display: "flex", gap: 24 }}>
           {STATS.map((stat) => (
             <StatCard key={stat.label} stat={stat} />
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 32 }}>
+        <div className="kollab-dashboard-split" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 32 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", padding: 32, textAlign: "center" }}>
               <div style={{ width: 96, height: 96, borderRadius: 16, background: "#e2e8f0", margin: "0 auto 16px auto", boxShadow: "0 0 0 4px rgba(60,107,237,0.2)" }} />
@@ -275,17 +324,24 @@ export default function Dashboard() {
             <h2 style={{ fontWeight: 600, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Recent KOL Applications</h2>
             <a href="#" style={{ color: appColors.primary, fontWeight: 700, fontSize: 14, textDecoration: "none" }}>See all 13</a>
           </div>
-          <div style={{ display: "flex", gap: 24 }}>
-            {APPLICATIONS.map((app) => (
-              <ApplicationCard key={app.name} app={app} />
-            ))}
-          </div>
+          {applications.length > 0 ? (
+            <div className="kollab-dashboard-apps-row" style={{ display: "flex", gap: 24 }}>
+              {applications.map((app) => (
+                <ApplicationCard key={app.name} app={app} onReview={setReviewingApp} saved={savedApplications.has(app.name)} onToggleSave={toggleSaveApplication} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 40, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+              No new applications to review right now.
+            </div>
+          )}
         </div>
 
         <Footer />
       </main>
 
       <aside
+        className="kollab-dashboard-aside"
         style={{
           position: "fixed",
           right: 0,
@@ -314,6 +370,14 @@ export default function Dashboard() {
           ))}
         </div>
       </aside>
+
+      {reviewingApp && (
+        <ReviewApplicationModal
+          applicant={reviewingApp}
+          onClose={() => setReviewingApp(null)}
+          onDecision={handleDecision}
+        />
+      )}
     </div>
   );
 }

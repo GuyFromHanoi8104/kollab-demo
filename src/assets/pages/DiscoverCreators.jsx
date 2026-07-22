@@ -5,8 +5,6 @@ import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
 
-const FILTER_CHIPS = ["Platform", "Category", "Followers", "Engagement Rate", "Location", "Price Range"];
-
 const CREATORS = [
   {
     id: "minh",
@@ -15,7 +13,9 @@ const CREATORS = [
     tags: ["Tech", "Gadgets"],
     statLabel: "TIKTOK FOLLOWERS",
     statValue: "1.2M",
+    followersNum: 1200000,
     engagement: "4.8%",
+    engagementNum: 4.8,
     avgViews: "450K Avg. Views",
     location: "Ho Chi Minh City",
     initial: "M",
@@ -27,7 +27,9 @@ const CREATORS = [
     tags: ["Beauty", "Luxury"],
     statLabel: "INSTAGRAM FOLLOWERS",
     statValue: "840K",
+    followersNum: 840000,
     engagement: "3.2%",
+    engagementNum: 3.2,
     avgViews: "120K Avg. Views",
     location: "Hanoi, VN",
     initial: "T",
@@ -39,7 +41,9 @@ const CREATORS = [
     tags: ["Fitness", "Wellness"],
     statLabel: "TIKTOK FOLLOWERS",
     statValue: "2.4M",
+    followersNum: 2400000,
     engagement: "5.5%",
+    engagementNum: 5.5,
     avgViews: "680K Avg. Views",
     location: "Ho Chi Minh City",
     initial: "K",
@@ -51,7 +55,9 @@ const CREATORS = [
     tags: ["Food", "Lifestyle"],
     statLabel: "FOLLOWERS (TOTAL)",
     statValue: "410K",
+    followersNum: 410000,
     engagement: "7.1%",
+    engagementNum: 7.1,
     avgViews: "95K Avg. Views",
     location: "Da Nang, VN",
     initial: "B",
@@ -132,6 +138,13 @@ function SortChevron() {
   return (
     <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
       <path d="M1 1l5 5 5-5" stroke={appColors.primary} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M2 2l14 14M16 2L2 16" stroke={appColors.gray} strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -236,14 +249,43 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
 export default function DiscoverCreators() {
   const [compared, setCompared] = useState(new Set());
   const [saved, setSaved] = useState(new Set());
+  const [activeTags, setActiveTags] = useState(new Set());
+  const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "engagement" | "followers"
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+
+  const ALL_TAGS = [...new Set(CREATORS.flatMap((c) => c.tags))];
+  const SORT_OPTIONS = ["relevance", "engagement", "followers"];
+  const SORT_LABELS = { relevance: "Relevance", engagement: "Highest Engagement", followers: "Most Followers" };
+
+  const toggleTag = (tag) => {
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      next.has(tag) ? next.delete(tag) : next.add(tag);
+      return next;
+    });
+  };
+  const cycleSort = () => {
+    const i = SORT_OPTIONS.indexOf(sortBy);
+    setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length]);
+  };
+
+  const visibleCreators = CREATORS
+    .filter((c) => activeTags.size === 0 || c.tags.some((t) => activeTags.has(t)))
+    .sort((a, b) => {
+      if (sortBy === "engagement") return b.engagementNum - a.engagementNum;
+      if (sortBy === "followers") return b.followersNum - a.followersNum;
+      return 0; // relevance = original order
+    });
 
   // Guest-vs-account distinction: browsing is public, but "Recently Viewed"
   // and "Saved Lists" are inherently account-tied concepts (nowhere to
   // persist them for an anonymous visitor), so they're hidden entirely when
   // logged out rather than shown empty/fake.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState("brand");
   useEffect(() => {
     setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
+    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
   }, []);
 
   const toggleCompare = (id) => {
@@ -275,12 +317,52 @@ export default function DiscoverCreators() {
         .kollab-discover, .kollab-discover *, .kollab-discover *::before, .kollab-discover *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-discover-main {
+            margin-left: 0 !important;
+            flex-direction: column !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 80px !important;
+          }
+          .kollab-discover-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-discover-aside {
+            width: 100% !important;
+          }
+          .kollab-discover-compare-bar {
+            left: 0 !important;
+            padding: 0 12px !important;
+          }
+          .kollab-discover-compare-inner {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+            padding: 16px !important;
+          }
+          .kollab-discover-compare-actions {
+            width: 100% !important;
+          }
+          .kollab-discover-compare-actions button {
+            flex: 1 !important;
+            padding: 12px 0 !important;
+            font-size: 14px !important;
+          }
+          .kollab-discover-compare-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
 
-      <AppSidebar activeItem="discover" />
-      <AppTopBar left={<Breadcrumb text="Workspace /" current="Kollab Demo" />} />
+      <AppSidebar activeItem="discover" role={role} />
+      <AppTopBar
+        left={<Breadcrumb text="Workspace /" current={role === "creator" ? "Mai Tran" : "Kollab Demo"} />}
+        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
+        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
+      />
 
-      <main style={{ marginLeft: 256, paddingTop: 96, paddingBottom: comparedCreators.length > 0 ? 140 : 64, paddingLeft: 32, paddingRight: 32, display: "flex", gap: 32 }}>
+      <main className="kollab-discover-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: comparedCreators.length > 0 ? 140 : 64, paddingLeft: 32, paddingRight: 32, display: "flex", gap: 32 }}>
         {/* Left: search + filters + creator grid */}
         <div style={{ flex: "1 1 640px", maxWidth: 640, minWidth: 0, display: "flex", flexDirection: "column", gap: 48 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -307,38 +389,63 @@ export default function DiscoverCreators() {
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {FILTER_CHIPS.map((chip) => (
-                  <button key={chip} type="button" style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 9999, padding: "9px 17px", fontWeight: 500, color: appColors.navy, fontSize: 14, cursor: "pointer" }}>
-                    {chip}
+                {ALL_TAGS.map((tag) => {
+                  const active = activeTags.has(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      style={{
+                        background: active ? appColors.primary : "white",
+                        border: `1px solid ${active ? appColors.primary : appColors.border}`,
+                        borderRadius: 9999, padding: "9px 17px", fontWeight: 500, fontSize: 14, cursor: "pointer",
+                        color: active ? "white" : appColors.navy,
+                        transition: "background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out",
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+                {activeTags.size > 0 && (
+                  <button type="button" onClick={() => setActiveTags(new Set())} style={{ background: "none", border: "none", color: appColors.grayLight, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Clear
                   </button>
-                ))}
+                )}
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.9 }}>
                 <span style={{ color: appColors.gray, fontSize: 14, fontWeight: 500 }}>Sort by:</span>
-                <button type="button" style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", cursor: "pointer", padding: 0 }}>
-                  <span style={{ color: appColors.primary, fontWeight: 700, fontSize: 16 }}>Relevance</span>
+                <button type="button" onClick={cycleSort} style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", cursor: "pointer", padding: 0 }}>
+                  <span style={{ color: appColors.primary, fontWeight: 700, fontSize: 16 }}>{SORT_LABELS[sortBy]}</span>
                   <SortChevron />
                 </button>
               </div>
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
-            {CREATORS.map((creator) => (
-              <CreatorCard
-                key={creator.id}
-                creator={creator}
-                compared={compared.has(creator.id)}
-                onToggleCompare={toggleCompare}
-                saved={saved.has(creator.id)}
-                onToggleSave={toggleSave}
-              />
-            ))}
-          </div>
+          {visibleCreators.length > 0 ? (
+            <div className="kollab-discover-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
+              {visibleCreators.map((creator) => (
+                <CreatorCard
+                  key={creator.id}
+                  creator={creator}
+                  compared={compared.has(creator.id)}
+                  onToggleCompare={toggleCompare}
+                  saved={saved.has(creator.id)}
+                  onToggleSave={toggleSave}
+                />
+              ))}
+            </div>
+          ) : (
+            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 48, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+              No creators match these filters.
+            </div>
+          )}
         </div>
 
         {/* Right: AI suggestions, recently viewed, saved lists */}
-        <aside style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
+        <aside className="kollab-discover-aside" style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
           <PremiumAIPanel subject="creators" />
 
           {isLoggedIn ? (
@@ -393,11 +500,13 @@ export default function DiscoverCreators() {
       {/* Floating compare bar -- only appears once creators are actually selected */}
       {comparedCreators.length > 0 && (
         <div
+          className="kollab-discover-compare-bar"
           style={{
             position: "fixed", left: 256, right: 0, bottom: 24, display: "flex", justifyContent: "center", padding: "0 32px", zIndex: 20,
           }}
         >
           <div
+            className="kollab-discover-compare-inner"
             style={{
               backdropFilter: "blur(6px)", background: "rgba(255,255,255,0.9)", border: `1px solid ${appColors.border}`, borderRadius: 32,
               boxShadow: "0px 10px 40px -15px rgba(0,0,0,0.2)", padding: 17, display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -420,13 +529,56 @@ export default function DiscoverCreators() {
                 ))}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 16 }}>
+            <div className="kollab-discover-compare-actions" style={{ display: "flex", gap: 16 }}>
               <button type="button" onClick={() => setCompared(new Set())} style={{ background: "none", border: "none", padding: "16px 24px", fontWeight: 700, color: appColors.gray, fontSize: 16, cursor: "pointer", borderRadius: 16 }}>
                 Clear All
               </button>
-              <button type="button" style={{ background: appColors.primary, border: "none", borderRadius: 16, padding: "16px 40px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", boxShadow: "0px 10px 15px -3px rgba(21,80,211,0.2), 0px 4px 6px -4px rgba(21,80,211,0.2)" }}>
+              <button type="button" onClick={() => setCompareModalOpen(true)} style={{ background: appColors.primary, border: "none", borderRadius: 16, padding: "16px 40px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", boxShadow: "0px 10px 15px -3px rgba(21,80,211,0.2), 0px 4px 6px -4px rgba(21,80,211,0.2)" }}>
                 Compare Now
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {compareModalOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setCompareModalOpen(false)} style={{ position: "absolute", inset: 0, background: appColors.navy, opacity: 0.45 }} />
+          <div style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 700, maxHeight: "85vh", overflowY: "auto", padding: 32, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+              <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 20 }}>Comparing {comparedCreators.length} Creators</div>
+              <button type="button" onClick={() => setCompareModalOpen(false)} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="kollab-discover-compare-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${comparedCreators.length}, 1fr)`, gap: 16 }}>
+              {comparedCreators.map((c) => (
+                <div key={c.id} style={{ border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div style={{ background: "#e2e8f0", borderRadius: 9999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, flexShrink: 0 }}>{c.initial}</div>
+                    <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>{c.statLabel}</div>
+                    <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 18 }}>{c.statValue}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Engagement</div>
+                    <div style={{ color: "#924700", fontWeight: 700, fontSize: 18 }}>{c.engagement}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Avg Views</div>
+                    <div style={{ color: appColors.navy, fontSize: 13 }}>{c.avgViews}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Location</div>
+                    <div style={{ color: appColors.navy, fontSize: 13 }}>{c.location}</div>
+                  </div>
+                  <Link to={`/creator/${c.id}`} style={{ background: appColors.primaryLighter, borderRadius: 10, padding: "8px 0", textAlign: "center", color: appColors.primary, fontWeight: 700, fontSize: 12, textDecoration: "none" }}>
+                    View Profile
+                  </Link>
+                </div>
+              ))}
             </div>
           </div>
         </div>

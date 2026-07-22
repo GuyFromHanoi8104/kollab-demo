@@ -14,7 +14,7 @@ import { Navigate } from "react-router-dom";
 // NOTE: checks "logged in at all", not role (brand vs creator) -- there's
 // still only one mock persona.
 export default function ProtectedRoute({ children }) {
-  const isLoggedIn = localStorage.getItem("kollab_mock_logged_in") === "true";
+  const isLoggedIn = sessionStorage.getItem("kollab_mock_logged_in") === "true";
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;

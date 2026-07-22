@@ -21,7 +21,7 @@ function SearchGlyph({ color }) {
 
 export function SearchBox({ placeholder }) {
   return (
-    <div style={{ background: appColors.primaryLighter, borderRadius: 12, width: 384, display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", boxSizing: "border-box" }}>
+    <div className="kollab-topbar-searchbox" style={{ background: appColors.primaryLighter, borderRadius: 12, width: 384, display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", boxSizing: "border-box" }}>
       <SearchGlyph color={appColors.grayLight} />
       <input
         type="text"
@@ -44,11 +44,12 @@ export function Breadcrumb({ text, current }) {
 export default function AppTopBar({ left, userName = "Kollab Demo", plan = "PREMIUM PLAN" }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   useEffect(() => {
-    setIsLoggedIn(localStorage.getItem("kollab_mock_logged_in") === "true");
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
   }, []);
 
   return (
     <header
+      className="kollab-topbar"
       style={{
         position: "fixed",
         top: 0,
@@ -65,7 +66,23 @@ export default function AppTopBar({ left, userName = "Kollab Demo", plan = "PREM
         zIndex: 9,
       }}
     >
-      <div>{left}</div>
+      <style>{`
+        @media (max-width: 768px) {
+          .kollab-topbar {
+            left: 0 !important;
+            padding-left: 72px !important;
+            padding-right: 16px !important;
+          }
+          .kollab-topbar-searchbox {
+            display: none !important;
+          }
+          .kollab-topbar-profile-text {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="kollab-topbar-left">{left}</div>
 
       {isLoggedIn ? (
         <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
@@ -74,10 +91,10 @@ export default function AppTopBar({ left, userName = "Kollab Demo", plan = "PREM
             <span style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 9999, background: "#ba1a1a", boxShadow: `0 0 0 2px ${appColors.bg}` }} />
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <span style={{ fontWeight: 700, color: appColors.primary, fontSize: 14 }}>K</span>
             </div>
-            <div style={{ textAlign: "right" }}>
+            <div className="kollab-topbar-profile-text" style={{ textAlign: "right" }}>
               <div style={{ color: appColors.navy, fontSize: 14, fontWeight: 500 }}>{userName}</div>
               <div style={{ color: appColors.grayLight, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase" }}>{plan}</div>
             </div>

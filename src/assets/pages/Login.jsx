@@ -76,7 +76,7 @@ function Footer() {
     <footer style={{ background: "#f7f9fb", borderTop: "1px solid #e0e3e5", width: "100%" }}>
       <div style={{ background: "white", borderTop: "1px solid #c3c6d7", width: "100%" }}>
         <div style={{ backdropFilter: "blur(6px)", background: "rgba(255,255,255,0.3)", borderTop: "1px solid rgba(195,198,215,0.1)", width: "100%" }}>
-          <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "64px 40px", flexWrap: "wrap", gap: 40, boxSizing: "border-box" }}>
+          <div className="kollab-login-footer-inner" style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "64px 40px", flexWrap: "wrap", gap: 40, boxSizing: "border-box" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 <KollabLogo size={32} />
@@ -153,11 +153,23 @@ export default function Login() {
         .kollab-login, .kollab-login *, .kollab-login *::before, .kollab-login *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-login-wrapper {
+            padding: 40px 16px !important;
+          }
+          .kollab-login-card {
+            padding: 24px !important;
+          }
+          .kollab-login-footer-inner {
+            padding: 40px 24px !important;
+            gap: 32px !important;
+          }
+        }
       `}</style>
 
       <TransactionalHeader mode="login" />
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", width: "100%", padding: "80px 24px", overflow: "hidden" }}>
+      <div className="kollab-login-wrapper" style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", width: "100%", padding: "80px 24px", overflow: "hidden" }}>
         {/* Atmospheric background glow, matches Figma's blurred radial element */}
         <div
           style={{
@@ -175,6 +187,7 @@ export default function Login() {
         />
 
         <div
+          className="kollab-login-card"
           style={{
             position: "relative",
             maxWidth: 448,

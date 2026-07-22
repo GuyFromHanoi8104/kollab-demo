@@ -211,7 +211,7 @@ function InviteModal({ onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "#0b1c30", opacity: 0.45 }} />
-      <div style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 480, padding: 32, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)" }}>
+      <div className="kollab-invite-modal" style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 480, padding: 32, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)" }}>
         {sent ? (
           <div style={{ padding: "24px 0", textAlign: "center" }}>
             <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 20 }}>Invitation sent!</div>
@@ -276,9 +276,9 @@ function InviteModal({ onClose }) {
               <div><div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Deadline</div><div style={{ color: appColors.navy, fontWeight: 600 }}>Aug 15, 2026</div></div>
             </div>
 
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <div className="kollab-invite-modal-actions" style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button type="button" onClick={onClose} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 24px", fontWeight: 600, color: appColors.gray, fontSize: 14, cursor: "pointer" }}>Cancel</button>
-              <button type="button" onClick={handleSend} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" onClick={handleSend} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer", display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
                 Send Invitation <ArrowRight color="white" />
               </button>
             </div>
@@ -293,13 +293,22 @@ export default function CreatorProfile() {
   const [saved, setSaved] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [portfolioFilter, setPortfolioFilter] = useState("All Content");
+  const [linkCopied, setLinkCopied] = useState(false);
   const navigate = useNavigate();
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
 
   // Viewing a profile is public; inviting a creator to a campaign requires
   // an account. Gate the action, not the page.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState("brand");
   useEffect(() => {
-    setIsLoggedIn(localStorage.getItem("kollab_mock_logged_in") === "true");
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
+    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
   }, []);
 
   const handleInviteClick = () => {
@@ -322,6 +331,47 @@ export default function CreatorProfile() {
         .kollab-creator-profile, .kollab-creator-profile *, .kollab-creator-profile *::before, .kollab-creator-profile *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-creator-profile-main {
+            margin-left: 0 !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 80px !important;
+          }
+          .kollab-creator-profile-split {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-creator-profile-hero {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          .kollab-creator-profile-insights-row {
+            flex-direction: column !important;
+          }
+          .kollab-creator-profile-similar-row {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+          }
+          .kollab-creator-profile-info-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-creator-profile-stats {
+            grid-template-columns: 1fr 1fr !important;
+          }
+          .kollab-creator-profile-portfolio {
+            grid-template-columns: 1fr 1fr !important;
+          }
+          .kollab-invite-modal {
+            padding: 20px !important;
+          }
+          .kollab-invite-modal-actions {
+            flex-direction: column-reverse !important;
+          }
+          .kollab-invite-modal-actions button {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+        }
         .kollab-scroll-row {
           scrollbar-width: thin;
           scrollbar-color: ${appColors.border} transparent;
@@ -331,15 +381,19 @@ export default function CreatorProfile() {
         .kollab-scroll-row::-webkit-scrollbar-track { background: transparent; }
       `}</style>
 
-      <AppSidebar activeItem="discover" />
-      <AppTopBar left={<SearchBox placeholder="Search creators, niches, or keywords..." />} />
+      <AppSidebar activeItem="discover" role={role} />
+      <AppTopBar
+        left={<SearchBox placeholder="Search creators, niches, or keywords..." />}
+        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
+        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
+      />
 
-      <main style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>
+      <main className="kollab-creator-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
+        <div className="kollab-creator-profile-split" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>
           {/* Left column */}
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 33, boxShadow: "0px 20px 40px -10px rgba(79,124,255,0.08)" }}>
-              <div style={{ display: "flex", gap: 32 }}>
+              <div className="kollab-creator-profile-hero" style={{ display: "flex", gap: 32 }}>
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <div style={{ border: `4px solid ${appColors.bg}`, borderRadius: 24, boxShadow: "0px 10px 15px -3px rgba(0,0,0,0.1)" }}>
                     <AvatarPlaceholder size={160} radius={20} label="L" />
@@ -362,7 +416,7 @@ export default function CreatorProfile() {
 
                   <p style={{ color: appColors.gray, fontSize: 16, lineHeight: "26px", margin: 0, maxWidth: 672 }}>{PROFILE.bio}</p>
 
-                  <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div className="kollab-creator-profile-info-grid" style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}><LocationIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE.location}</span></div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}><GlobeIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE.languages}</span></div>
@@ -376,14 +430,14 @@ export default function CreatorProfile() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            <div className="kollab-creator-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
               {STATS.map((stat) => (
                 <StatCard key={stat.label} stat={stat} highlight={false} />
               ))}
               <StatCard highlight stat={null} />
             </div>
 
-            <div style={{ display: "flex", gap: 24 }}>
+            <div className="kollab-creator-profile-insights-row" style={{ display: "flex", gap: 24 }}>
               <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
                 <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Audience Insights</h3>
 
@@ -484,6 +538,7 @@ export default function CreatorProfile() {
                         border: `1px solid ${portfolioFilter === tab ? appColors.primary : appColors.border}`,
                         borderRadius: 9999, padding: "7px 13px", fontWeight: 600, fontSize: 12,
                         color: portfolioFilter === tab ? "white" : appColors.grayLight, cursor: "pointer",
+                        transition: "background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out",
                       }}
                     >
                       {tab}
@@ -491,7 +546,7 @@ export default function CreatorProfile() {
                   ))}
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div className="kollab-creator-profile-portfolio" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
                 {PORTFOLIO.map((item, i) => (
                   <div key={i} style={{ aspectRatio: "9/16", background: "linear-gradient(135deg, #cbd5e1, #94a3b8)", border: `1px solid ${appColors.border}`, borderRadius: 16, position: "relative", display: "flex", alignItems: "flex-end", padding: 16 }}>
                     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
@@ -521,33 +576,48 @@ export default function CreatorProfile() {
           {/* Right column -- sticky contact card */}
           <div style={{ minWidth: 0 }}>
             <div style={{ position: "sticky", top: 96, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 25, boxShadow: "0px 20px 40px -10px rgba(79,124,255,0.08)", display: "flex", flexDirection: "column", gap: 32 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <div style={{ background: "#22c55e", width: 10, height: 10, borderRadius: 9999 }} />
                   <span style={{ color: "#22c55e", fontWeight: 700, fontSize: 14 }}>Available for campaigns</span>
                 </div>
-                <button type="button" aria-label="Share profile" style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 9999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <button type="button" onClick={handleShare} aria-label="Share profile" style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 9999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   <ShareIcon color={appColors.gray} />
                 </button>
+                {linkCopied && (
+                  <span style={{ position: "absolute", top: 46, right: 0, background: appColors.navy, color: "white", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 8, whiteSpace: "nowrap" }}>
+                    Link copied!
+                  </span>
+                )}
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <button
-                  type="button"
-                  onClick={handleInviteClick}
-                  style={{ background: appColors.primary, border: "none", borderRadius: 16, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", boxShadow: "0px 10px 15px -3px rgba(21,80,211,0.2), 0px 4px 6px -4px rgba(21,80,211,0.2)" }}
-                >
-                  Invite to Campaign
-                </button>
-                <div style={{ display: "flex", gap: 16 }}>
-                  <button type="button" onClick={() => setSaved((s) => !s)} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
-                    <BookmarkIcon filled={saved} /> {saved ? "Saved" : "Save"}
+              {role === "brand" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <button
+                    type="button"
+                    onClick={handleInviteClick}
+                    style={{ background: appColors.primary, border: "none", borderRadius: 16, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", boxShadow: "0px 10px 15px -3px rgba(21,80,211,0.2), 0px 4px 6px -4px rgba(21,80,211,0.2)" }}
+                  >
+                    Invite to Campaign
                   </button>
-                  <button type="button" style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
-                    <MessageIcon color={appColors.navy} /> Message
-                  </button>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <button type="button" onClick={() => setSaved((s) => !s)} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
+                      <BookmarkIcon filled={saved} /> {saved ? "Saved" : "Save"}
+                    </button>
+                    <button type="button" onClick={() => navigate("/messages")} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
+                      <MessageIcon color={appColors.navy} /> Message
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                // Discover Creators is view-only for the creator role for now
+                // -- no creator-to-creator connect/message feature has been
+                // designed yet, so nothing actionable is shown here rather
+                // than a half-built feature.
+                <div style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 20, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+                  You're viewing this profile. Brand accounts can invite creators to campaigns from here.
+                </div>
+              )}
 
               <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 11 }}>
                 <span style={{ color: appColors.grayLight, fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>Quick Note</span>
@@ -559,7 +629,7 @@ export default function CreatorProfile() {
 
         <div style={{ maxWidth: 1280, marginTop: 32, paddingBottom: 48, display: "flex", flexDirection: "column", gap: 32 }}>
           <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Similar Creators You Might Like</h3>
-          <div style={{ display: "flex", gap: 24 }}>
+          <div className="kollab-creator-profile-similar-row" style={{ display: "flex", gap: 24 }}>
             {SIMILAR_CREATORS.map((c) => (
               <div key={c.name} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 21, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                 <div style={{ border: `2px solid ${appColors.bg}`, borderRadius: 16 }}>

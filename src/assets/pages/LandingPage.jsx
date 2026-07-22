@@ -43,6 +43,7 @@ function SearchModeToggle({ mode, onChange }) {
     color: active ? "white" : colors.gray,
     boxShadow: active ? "0px 4px 6px -1px rgba(37,99,235,0.3), 0px 2px 4px -2px rgba(37,99,235,0.3)" : "none",
     cursor: "pointer",
+    transition: "background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out, box-shadow 200ms ease-out",
   });
   return (
     <div style={{ display: "flex", gap: 16, width: "100%" }}>
@@ -55,6 +56,7 @@ function SearchModeToggle({ mode, onChange }) {
 function SearchCard({ mode, onModeChange }) {
   return (
     <div
+      className="kollab-search-card"
       style={{
         backdropFilter: "blur(10px)",
         background: "rgba(255,255,255,0.4)",
@@ -72,7 +74,7 @@ function SearchCard({ mode, onModeChange }) {
     >
       <SearchModeToggle mode={mode} onChange={onModeChange} />
 
-      <div style={{ display: "flex", gap: 12, width: "100%" }}>
+      <div className="kollab-search-row" style={{ display: "flex", gap: 12, width: "100%" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(115,118,134,0.6)" }}>🔍</span>
           <input
@@ -94,6 +96,7 @@ function SearchCard({ mode, onModeChange }) {
         </div>
         <button
           type="button"
+          className="kollab-search-button"
           style={{
             background: colors.blue,
             borderRadius: 16,
@@ -149,6 +152,7 @@ function HeroVisual() {
       }}
     >
       <div
+        className="kollab-hero-visual-inner"
         style={{
           height: 334,
           width: "100%",
@@ -196,7 +200,7 @@ function HeroVisual() {
 
 function StatsBar() {
   return (
-    <div style={{ borderTop: "1px solid rgba(195,198,215,0.1)", display: "flex", gap: 40, justifyContent: "center", width: "100%", paddingTop: 49, paddingBottom: 48 }}>
+    <div className="kollab-stats-bar" style={{ borderTop: "1px solid rgba(195,198,215,0.1)", display: "flex", gap: 40, justifyContent: "center", width: "100%", paddingTop: 49, paddingBottom: 48 }}>
       {STATS.map((stat) => (
         <div key={stat.label} style={{ display: "flex", gap: 20, alignItems: "center", width: 234 }}>
           <div style={{ backdropFilter: "blur(2px)", background: stat.tint, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 16, flexShrink: 0, width: 56, height: 56 }} />
@@ -318,19 +322,61 @@ export default function LandingPage() {
         .kollab-landing, .kollab-landing *, .kollab-landing *::before, .kollab-landing *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-landing {
+            gap: 64px !important;
+            padding-top: 96px !important;
+          }
+          .kollab-hero-grid {
+            grid-template-columns: 1fr !important;
+            padding: 0 20px !important;
+            gap: 40px !important;
+          }
+          .kollab-hero-grid > div {
+            grid-column: span 1 !important;
+          }
+          .kollab-hero-heading {
+            font-size: 36px !important;
+            line-height: 44px !important;
+            letter-spacing: -0.9px !important;
+          }
+          .kollab-hero-subtext {
+            font-size: 16px !important;
+          }
+          .kollab-search-card {
+            padding: 20px !important;
+          }
+          .kollab-search-row {
+            flex-direction: column !important;
+          }
+          .kollab-search-button {
+            width: 100% !important;
+          }
+          .kollab-hero-visual-inner {
+            height: 200px !important;
+          }
+          .kollab-stats-bar {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 24px !important;
+          }
+          .kollab-stats-bar > div {
+            width: 100% !important;
+          }
+        }
       `}</style>
 
       <MarketingNavBar activeTab="explore" isLoggedIn={isLoggedIn} role={role} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 48, width: "100%", maxWidth: 1200, padding: "0 40px", boxSizing: "border-box" }}>
+      <div className="kollab-hero-grid" style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 48, width: "100%", maxWidth: 1200, padding: "0 40px", boxSizing: "border-box" }}>
         {/* Main content, 8 cols */}
         <div style={{ gridColumn: "span 8", display: "flex", flexDirection: "column", gap: 40, alignItems: "flex-start", minWidth: 0 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "flex-start" }}>
-            <h1 style={{ fontWeight: 800, color: colors.navy, fontSize: 64, lineHeight: "72px", letterSpacing: -1.6, maxWidth: 768, margin: 0 }}>
+            <h1 className="kollab-hero-heading" style={{ fontWeight: 800, color: colors.navy, fontSize: 64, lineHeight: "72px", letterSpacing: -1.6, maxWidth: 768, margin: 0 }}>
               Connecting Brands with{" "}
               <span style={{ color: colors.blue }}>the Perfect KOLs</span>
             </h1>
-            <p style={{ color: colors.gray, fontSize: 18, lineHeight: "29px", maxWidth: 672, margin: 0 }}>
+            <p className="kollab-hero-subtext" style={{ color: colors.gray, fontSize: 18, lineHeight: "29px", maxWidth: 672, margin: 0 }}>
               The ultimate platform for fast, transparent, and efficient influencer collaboration for every campaign. Experience the future of partnership.
             </p>
           </div>

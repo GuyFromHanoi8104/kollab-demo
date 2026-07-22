@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { appColors } from "./appColors";
+import UpgradeModal from "./UpgradeModal";
 
 function SparkleIcon() {
   return (
@@ -18,6 +20,8 @@ function LockIcon() {
 
 // subject: what the recommendations would be for, e.g. "creators" or "brands"
 export default function PremiumAIPanel({ subject = "creators" }) {
+  const [modalOpen, setModalOpen] = useState(false);
+
   return (
     <div style={{ background: "#d3e4fe", border: `1px solid ${appColors.border}`, borderRadius: 32, padding: 25, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", gap: 15 }}>
       <div style={{ position: "absolute", background: "rgba(21,80,211,0.1)", filter: "blur(32px)", width: 128, height: 128, borderRadius: 9999, top: -48, right: -48 }} />
@@ -31,10 +35,13 @@ export default function PremiumAIPanel({ subject = "creators" }) {
       </p>
       <button
         type="button"
+        onClick={() => setModalOpen(true)}
         style={{ position: "relative", background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 20px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer", width: "100%" }}
       >
         Upgrade to Premium
       </button>
+
+      {modalOpen && <UpgradeModal onClose={() => setModalOpen(false)} />}
     </div>
   );
 }

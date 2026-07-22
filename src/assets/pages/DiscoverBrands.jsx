@@ -5,8 +5,6 @@ import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
 
-const FILTER_CHIPS = ["Industry", "Campaign Type", "Budget Range", "Location"];
-
 // Reusing brand names already established elsewhere in the app (Landing
 // Page's Active Brands, Campaigns Browse) instead of inventing new ones,
 // so the mock data feels like one connected product rather than disconnected
@@ -19,8 +17,10 @@ const BRANDS = [
     location: "Ho Chi Minh City",
     tags: ["E-commerce", "Retail"],
     activeCampaigns: "4",
+    activeCampaignsNum: 4,
     avgBudget: "$1,200 – $5,000",
     creatorsWorked: "340+",
+    creatorsWorkedNum: 340,
     initial: "S",
     logoBg: "#fff7ed",
   },
@@ -31,8 +31,10 @@ const BRANDS = [
     location: "Hanoi",
     tags: ["Automotive", "EV"],
     activeCampaigns: "2",
+    activeCampaignsNum: 2,
     avgBudget: "$3,000 – $8,000",
     creatorsWorked: "85+",
+    creatorsWorkedNum: 85,
     initial: "V",
     logoBg: "#e5eeff",
   },
@@ -43,8 +45,10 @@ const BRANDS = [
     location: "Ho Chi Minh City",
     tags: ["F&B", "Lifestyle"],
     activeCampaigns: "6",
+    activeCampaignsNum: 6,
     avgBudget: "$500 – $1,500",
     creatorsWorked: "620+",
+    creatorsWorkedNum: 620,
     initial: "H",
     logoBg: "#fef3c7",
   },
@@ -55,8 +59,10 @@ const BRANDS = [
     location: "Ho Chi Minh City",
     tags: ["Beauty", "Skincare"],
     activeCampaigns: "3",
+    activeCampaignsNum: 3,
     avgBudget: "$300 – $800",
     creatorsWorked: "210+",
+    creatorsWorkedNum: 210,
     initial: "G",
     logoBg: "#e5eeff",
   },
@@ -67,8 +73,10 @@ const BRANDS = [
     location: "Phu Quoc",
     tags: ["Travel", "Hospitality"],
     activeCampaigns: "1",
+    activeCampaignsNum: 1,
     avgBudget: "$1,200 – $2,500",
     creatorsWorked: "45+",
+    creatorsWorkedNum: 45,
     initial: "A",
     logoBg: "#dbeafe",
   },
@@ -79,8 +87,10 @@ const BRANDS = [
     location: "Hanoi",
     tags: ["Tech", "Gaming"],
     activeCampaigns: "2",
+    activeCampaignsNum: 2,
     avgBudget: "$2,000 – $4,500",
     creatorsWorked: "120+",
+    creatorsWorkedNum: 120,
     initial: "V",
     logoBg: "#e5eeff",
   },
@@ -139,6 +149,13 @@ function SortChevron() {
     </svg>
   );
 }
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M2 2l14 14M16 2L2 16" stroke={appColors.gray} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function AvatarSquare({ initial, size = 48, radius = 12 }) {
   return (
@@ -153,7 +170,7 @@ function AvatarSquare({ initial, size = 48, radius = 12 }) {
   );
 }
 
-function BrandCard({ brand, saved, onToggleSave }) {
+function BrandCard({ brand, saved, onToggleSave, onViewProfile }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
@@ -199,9 +216,7 @@ function BrandCard({ brand, saved, onToggleSave }) {
           <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>Avg. Budget: {brand.avgBudget}</span>
         </div>
 
-        {/* No Brand Profile page exists yet (this whole page is a new,
-            not-yet-in-Figma design) -- button is a visual placeholder for now. */}
-        <button type="button" style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", marginTop: "auto" }}>
+        <button type="button" onClick={() => onViewProfile(brand)} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", marginTop: "auto" }}>
           View Brand Profile
         </button>
       </div>
@@ -211,16 +226,40 @@ function BrandCard({ brand, saved, onToggleSave }) {
 
 export default function DiscoverBrands() {
   const [saved, setSaved] = useState(new Set());
+  const [activeIndustries, setActiveIndustries] = useState(new Set());
+  const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "campaigns" | "creators"
+  const [profileBrand, setProfileBrand] = useState(null);
 
-  // NOTE: there's no real "creator" account/role yet -- only the single
-  // brand persona ("Kollab Demo") the rest of the app is built around. Using
-  // the existing mock-login flag as a stand-in: logged in = brand viewing,
-  // logged out = the public/creator-curious visitor. Swap this for a real
-  // role check once creator accounts actually exist.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState("brand");
   useEffect(() => {
-    setIsLoggedIn(localStorage.getItem("kollab_mock_logged_in") === "true");
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
+    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
   }, []);
+
+  const ALL_INDUSTRIES = [...new Set(BRANDS.map((b) => b.industry))];
+  const SORT_OPTIONS = ["relevance", "campaigns", "creators"];
+  const SORT_LABELS = { relevance: "Relevance", campaigns: "Most Active Campaigns", creators: "Most Creators Worked With" };
+
+  const toggleIndustry = (ind) => {
+    setActiveIndustries((prev) => {
+      const next = new Set(prev);
+      next.has(ind) ? next.delete(ind) : next.add(ind);
+      return next;
+    });
+  };
+  const cycleSort = () => {
+    const i = SORT_OPTIONS.indexOf(sortBy);
+    setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length]);
+  };
+
+  const visibleBrands = BRANDS
+    .filter((b) => activeIndustries.size === 0 || activeIndustries.has(b.industry))
+    .sort((a, b) => {
+      if (sortBy === "campaigns") return b.activeCampaignsNum - a.activeCampaignsNum;
+      if (sortBy === "creators") return b.creatorsWorkedNum - a.creatorsWorkedNum;
+      return 0;
+    });
 
   const toggleSave = (id) => {
     setSaved((prev) => {
@@ -242,6 +281,21 @@ export default function DiscoverBrands() {
         .kollab-discover-brands, .kollab-discover-brands *, .kollab-discover-brands *::before, .kollab-discover-brands *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-discover-brands-main {
+            margin-left: 0 !important;
+            flex-direction: column !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 80px !important;
+          }
+          .kollab-discover-brands-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .kollab-discover-brands-aside {
+            width: 100% !important;
+          }
+        }
       `}</style>
 
       {/* NOTE: reusing the brand-side AppSidebar shell for visual consistency
@@ -249,10 +303,14 @@ export default function DiscoverBrands() {
           bigger "role split" task still pending). No matching nav item
           highlights here on purpose -- this page doesn't belong to the
           current brand-oriented nav. */}
-      <AppSidebar activeItem={null} />
-      <AppTopBar left={<Breadcrumb text="Workspace /" current="Discover Brands" />} />
+      <AppSidebar activeItem={role === "creator" ? "discover-brands" : null} role={role} />
+      <AppTopBar
+        left={<Breadcrumb text="Workspace /" current="Discover Brands" />}
+        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
+        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
+      />
 
-      <main style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, display: "flex", gap: 32 }}>
+      <main className="kollab-discover-brands-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, display: "flex", gap: 32 }}>
         <div style={{ flex: "1 1 640px", maxWidth: 640, minWidth: 0, display: "flex", flexDirection: "column", gap: 48 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div>
@@ -280,30 +338,55 @@ export default function DiscoverBrands() {
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {FILTER_CHIPS.map((chip) => (
-                  <button key={chip} type="button" style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 9999, padding: "9px 17px", fontWeight: 500, color: appColors.navy, fontSize: 14, cursor: "pointer" }}>
-                    {chip}
+                {ALL_INDUSTRIES.map((ind) => {
+                  const active = activeIndustries.has(ind);
+                  return (
+                    <button
+                      key={ind}
+                      type="button"
+                      onClick={() => toggleIndustry(ind)}
+                      style={{
+                        background: active ? appColors.primary : "white",
+                        border: `1px solid ${active ? appColors.primary : appColors.border}`,
+                        borderRadius: 9999, padding: "9px 17px", fontWeight: 500, fontSize: 14, cursor: "pointer",
+                        color: active ? "white" : appColors.navy,
+                        transition: "background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out",
+                      }}
+                    >
+                      {ind}
+                    </button>
+                  );
+                })}
+                {activeIndustries.size > 0 && (
+                  <button type="button" onClick={() => setActiveIndustries(new Set())} style={{ background: "none", border: "none", color: appColors.grayLight, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Clear
                   </button>
-                ))}
+                )}
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.9 }}>
                 <span style={{ color: appColors.gray, fontSize: 14, fontWeight: 500 }}>Sort by:</span>
-                <button type="button" style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", cursor: "pointer", padding: 0 }}>
-                  <span style={{ color: appColors.primary, fontWeight: 700, fontSize: 16 }}>Relevance</span>
+                <button type="button" onClick={cycleSort} style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", cursor: "pointer", padding: 0 }}>
+                  <span style={{ color: appColors.primary, fontWeight: 700, fontSize: 16 }}>{SORT_LABELS[sortBy]}</span>
                   <SortChevron />
                 </button>
               </div>
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
-            {BRANDS.map((brand) => (
-              <BrandCard key={brand.id} brand={brand} saved={saved.has(brand.id)} onToggleSave={toggleSave} />
-            ))}
-          </div>
+          {visibleBrands.length > 0 ? (
+            <div className="kollab-discover-brands-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
+              {visibleBrands.map((brand) => (
+                <BrandCard key={brand.id} brand={brand} saved={saved.has(brand.id)} onToggleSave={toggleSave} onViewProfile={setProfileBrand} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 48, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+              No brands match these filters.
+            </div>
+          )}
         </div>
 
-        <aside style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
+        <aside className="kollab-discover-brands-aside" style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
           <PremiumAIPanel subject="brands" />
 
           {isLoggedIn ? (
@@ -349,6 +432,54 @@ export default function DiscoverBrands() {
           )}
         </aside>
       </main>
+
+      {profileBrand && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setProfileBrand(null)} style={{ position: "absolute", inset: 0, background: appColors.navy, opacity: 0.45 }} />
+          <div style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 440, padding: 32, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{ background: profileBrand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20 }}>
+                  {profileBrand.initial}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 18 }}>{profileBrand.name}</div>
+                  <div style={{ color: appColors.grayLight, fontSize: 13 }}>{profileBrand.industry} · {profileBrand.location}</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => setProfileBrand(null)} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                <CloseIcon />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {profileBrand.tags.map((tag) => (
+                <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 700, fontSize: 12, borderRadius: 9999, padding: "4px 12px" }}>{tag}</span>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 16 }}>
+              <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1 }}>
+                <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>ACTIVE CAMPAIGNS</div>
+                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 24 }}>{profileBrand.activeCampaigns}</div>
+              </div>
+              <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1 }}>
+                <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>CREATORS WORKED WITH</div>
+                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 24 }}>{profileBrand.creatorsWorked}</div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ color: appColors.grayLight, fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Average Budget</div>
+              <div style={{ color: appColors.navy, fontSize: 16, fontWeight: 600, marginTop: 4 }}>{profileBrand.avgBudget}</div>
+            </div>
+
+            <button type="button" onClick={() => setProfileBrand(null)} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

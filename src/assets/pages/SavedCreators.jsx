@@ -110,12 +110,23 @@ export default function SavedCreators() {
         .kollab-saved-creators, .kollab-saved-creators *, .kollab-saved-creators *::before, .kollab-saved-creators *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-saved-creators-main {
+            margin-left: 0 !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+            padding-top: 80px !important;
+          }
+          .kollab-saved-creators-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
 
       <AppSidebar activeItem="saved" />
       <AppTopBar left={<Breadcrumb text="Workspace /" current="Saved Creators" />} />
 
-      <main style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, display: "flex", flexDirection: "column", gap: 32 }}>
+      <main className="kollab-saved-creators-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, display: "flex", flexDirection: "column", gap: 32 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h1 style={{ fontWeight: 600, color: appColors.navy, fontSize: 36, letterSpacing: -0.72, margin: 0 }}>Saved Creators</h1>
           <p style={{ color: appColors.grayLight, fontSize: 16, margin: 0 }}>Creators you've bookmarked, organized into your lists.</p>
@@ -134,6 +145,7 @@ export default function SavedCreators() {
                   border: `1px solid ${activeList === list ? appColors.primary : appColors.border}`,
                   borderRadius: 9999, padding: "9px 17px", fontWeight: 600, fontSize: 14,
                   color: activeList === list ? "white" : appColors.gray, cursor: "pointer",
+                  transition: "background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out",
                 }}
               >
                 {list} ({count})
@@ -143,7 +155,7 @@ export default function SavedCreators() {
         </div>
 
         {filtered.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+          <div className="kollab-saved-creators-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
             {filtered.map((creator) => (
               <SavedCreatorCard key={creator.id} creator={creator} onUnsave={handleUnsave} />
             ))}

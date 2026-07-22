@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import MarketingNavBar from "../components/MarketingNavBar";
 import Footer from "../components/Footer";
 
@@ -113,7 +114,17 @@ function ArrowRight({ color }) {
   );
 }
 
-function OpportunityCard({ opp, saved, onToggleSave }) {
+function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, isLoggedIn, role, onRequireLogin }) {
+  const isBrand = isLoggedIn && role === "brand";
+
+  const handleApplyClick = () => {
+    if (applied || isBrand) return;
+    if (!isLoggedIn) {
+      onRequireLogin();
+      return;
+    }
+    onApply(opp.id);
+  };
   return (
     <div style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", flex: "1 1 340px", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 224, background: opp.gradient, position: "relative" }}>
@@ -161,8 +172,17 @@ function OpportunityCard({ opp, saved, onToggleSave }) {
         </div>
 
         <div style={{ display: "flex", gap: 12 }}>
-          <button type="button" style={{ background: colors.blue, border: "none", borderRadius: 16, padding: "16px 0", flex: 1, fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer" }}>
-            Apply
+          <button
+            type="button"
+            onClick={handleApplyClick}
+            disabled={applied || isBrand}
+            style={{
+              background: applied ? "#dcfce7" : isBrand ? colors.border : colors.blue, border: "none", borderRadius: 16, padding: "16px 0", flex: 1,
+              fontWeight: 700, color: applied ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: applied || isBrand ? "default" : "pointer",
+              transition: "background-color 200ms ease-out, color 200ms ease-out",
+            }}
+          >
+            {applied ? "Applied ✓" : isBrand ? "Creators Only" : "Apply"}
           </button>
         </div>
       </div>
@@ -171,7 +191,39 @@ function OpportunityCard({ opp, saved, onToggleSave }) {
 }
 
 export default function CampaignsBrowse() {
+  const navigate = useNavigate();
   const [saved, setSaved] = useState(new Set());
+  const [applied, setApplied] = useState(new Set());
+  const [featuredApplied, setFeaturedApplied] = useState(false);
+  const [searchText, setSearchText] = useState("");
+
+  const handleApply = (id) => {
+    setApplied((prev) => new Set(prev).add(id));
+  };
+  const handleRequireLogin = () => navigate("/login");
+
+  // This was missing entirely -- MarketingNavBar defaults isLoggedIn to
+  // false when not passed a prop, so this page always showed the logged-out
+  // header regardless of actual session state. Real bug, not a stale file.
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState("brand");
+  useEffect(() => {
+    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
+    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
+  }, []);
+
+  // Applying is a creator-only action -- brands manage campaigns, they
+  // don't apply to them (established rule). Guests get sent to log in
+  // rather than being able to fake-apply anonymously.
+  const isBrand = isLoggedIn && role === "brand";
+  const handleFeaturedApplyClick = () => {
+    if (featuredApplied || isBrand) return;
+    if (!isLoggedIn) {
+      handleRequireLogin();
+      return;
+    }
+    setFeaturedApplied(true);
+  };
 
   const toggleSave = (id) => {
     setSaved((prev) => {
@@ -195,7 +247,7 @@ export default function CampaignsBrowse() {
         }
       `}</style>
 
-      <MarketingNavBar activeTab="campaigns" />
+      <MarketingNavBar activeTab="campaigns" isLoggedIn={isLoggedIn} role={role} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", padding: "128px 24px 0 24px" }}>
         <h1 style={{ fontWeight: 800, color: colors.navy, fontSize: 56, letterSpacing: -1.5, textAlign: "center", margin: 0 }}>Discover Campaigns</h1>
@@ -207,8 +259,10 @@ export default function CampaignsBrowse() {
           </div>
           <input
             type="text"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
             placeholder="Search brands, industries, or keywords..."
-            style={{ width: "100%", height: 64, border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", padding: "0 130px 0 65px", fontSize: 16, color: colors.navy, outline: "none" }}
+            style={{ width: "100%", height: 64, border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", padding: "0 130px 0 65px", fontSize: 16, color: colors.navy, outline: "none", boxSizing: "border-box" }}
           />
           <button type="button" style={{ position: "absolute", right: 8, top: 8, bottom: 8, background: colors.blue, border: "none", borderRadius: 16, padding: "0 32px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer" }}>
             Search
@@ -255,7 +309,18 @@ export default function CampaignsBrowse() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 16 }}>
-              <button type="button" style={{ background: colors.blue, border: "none", borderRadius: 16, padding: "17px 40px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer" }}>Apply Now</button>
+              <button
+                type="button"
+                onClick={handleFeaturedApplyClick}
+                disabled={featuredApplied || isBrand}
+                style={{
+                  background: featuredApplied ? "#dcfce7" : isBrand ? colors.border : colors.blue, border: "none", borderRadius: 16, padding: "17px 40px",
+                  fontWeight: 700, color: featuredApplied ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: featuredApplied || isBrand ? "default" : "pointer",
+                  transition: "background-color 200ms ease-out, color 200ms ease-out",
+                }}
+              >
+                {featuredApplied ? "Applied ✓" : isBrand ? "Creators Only" : "Apply Now"}
+              </button>
               <button type="button" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 16, padding: "17px 41px", fontWeight: 700, color: colors.navy, fontSize: 16, cursor: "pointer" }}>View Details</button>
             </div>
           </div>
@@ -279,22 +344,42 @@ export default function CampaignsBrowse() {
       </div>
 
       <div style={{ maxWidth: 1280, margin: "40px auto 0 auto", padding: "0 24px 56px 24px", display: "flex", flexWrap: "wrap", gap: 32, justifyContent: "center" }}>
-        {OPPORTUNITIES.map((opp) => (
-          <OpportunityCard key={opp.id} opp={opp} saved={saved.has(opp.id)} onToggleSave={toggleSave} />
-        ))}
+        {(() => {
+          const query = searchText.trim().toLowerCase();
+          const filteredOpportunities = query
+            ? OPPORTUNITIES.filter(
+                (opp) =>
+                  opp.brand.toLowerCase().includes(query) ||
+                  opp.title.toLowerCase().includes(query) ||
+                  opp.category.toLowerCase().includes(query)
+              )
+            : OPPORTUNITIES;
+
+          return filteredOpportunities.length > 0 ? (
+            filteredOpportunities.map((opp) => (
+              <OpportunityCard key={opp.id} opp={opp} saved={saved.has(opp.id)} onToggleSave={toggleSave} applied={applied.has(opp.id)} onApply={handleApply} isLoggedIn={isLoggedIn} role={role} onRequireLogin={handleRequireLogin} />
+            ))
+          ) : (
+            <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>
+              No campaigns match "{searchText}".
+            </div>
+          );
+        })()}
       </div>
 
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px" }}>
-        <div style={{ background: "#1e3a8a", borderRadius: 40, padding: 80, display: "flex", flexDirection: "column", gap: 24, alignItems: "center" }}>
-          <h2 style={{ fontWeight: 800, color: "white", fontSize: 48, textAlign: "center", margin: 0 }}>Find brand collaborations faster.</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, textAlign: "center", maxWidth: 672, margin: 0 }}>
-            Join thousands of creators in Vietnam who are already scaling their career with Kollab's direct-to-brand marketplace.
-          </p>
-          <button type="button" style={{ background: colors.blue, border: "none", borderRadius: 16, padding: "20px 48px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.2)" }}>
-            Create Free Creator Account
-          </button>
+      {!(isLoggedIn && role === "creator") && (
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px" }}>
+          <div style={{ background: "#1e3a8a", borderRadius: 40, padding: 80, display: "flex", flexDirection: "column", gap: 24, alignItems: "center" }}>
+            <h2 style={{ fontWeight: 800, color: "white", fontSize: 48, textAlign: "center", margin: 0 }}>Find brand collaborations faster.</h2>
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, textAlign: "center", maxWidth: 672, margin: 0 }}>
+              Join thousands of creators in Vietnam who are already scaling their career with Kollab's direct-to-brand marketplace.
+            </p>
+            <Link to="/signup" style={{ background: colors.blue, border: "none", borderRadius: 16, padding: "20px 48px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.2)", textDecoration: "none", display: "inline-block" }}>
+              Create Free Creator Account
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ maxWidth: 1280, margin: "0 auto", padding: "65px 24px", display: "flex", gap: 64, justifyContent: "center", borderTop: `1px solid ${colors.border}`, borderBottom: `1px solid ${colors.border}` }}>
         {STATS.map((stat) => (

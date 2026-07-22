@@ -30,6 +30,7 @@ export default function MarketingNavBar({ activeTab, isLoggedIn = false, role = 
   const profileInitial = role === "creator" ? "M" : "K";
   return (
     <div
+      className="kollab-marketing-nav"
       style={{
         position: "absolute",
         left: 0,
@@ -41,12 +42,28 @@ export default function MarketingNavBar({ activeTab, isLoggedIn = false, role = 
         zIndex: 10,
       }}
     >
-      <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 40px" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .kollab-marketing-nav .kollab-nav-inner {
+            padding: 16px 20px !important;
+          }
+          .kollab-marketing-nav .kollab-nav-links {
+            display: none !important;
+          }
+          .kollab-marketing-nav .kollab-nav-profile-text {
+            display: none !important;
+          }
+          .kollab-marketing-nav .kollab-nav-auth {
+            gap: 12px !important;
+          }
+        }
+      `}</style>
+      <div className="kollab-nav-inner" style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 40px" }}>
         <Link to="/" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none" }}>
           <KollabLogo size={36} />
           <span style={{ fontWeight: 800, color: colors.navy, fontSize: 24, letterSpacing: -0.6 }}>Kollab</span>
         </Link>
-        <nav style={{ display: "flex", gap: 40, alignItems: "center" }}>
+        <nav className="kollab-nav-links" style={{ display: "flex", gap: 40, alignItems: "center" }}>
           {NAV_LINKS.map((link) => {
             const active = link.key === activeTab;
             return (
@@ -70,23 +87,23 @@ export default function MarketingNavBar({ activeTab, isLoggedIn = false, role = 
         </nav>
 
         {isLoggedIn ? (
-          <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+          <div className="kollab-nav-auth" style={{ display: "flex", gap: 24, alignItems: "center" }}>
             <div style={{ position: "relative", display: "flex" }}>
               <BellIcon color={colors.gray} />
               <span style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 9999, background: "#ba1a1a", boxShadow: "0 0 0 2px #f8f9ff" }} />
             </div>
             <Link to={profileDestination} style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none" }}>
-              <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <span style={{ fontWeight: 700, color: "#1550d3", fontSize: 14 }}>{profileInitial}</span>
               </div>
-              <div style={{ textAlign: "right" }}>
+              <div className="kollab-nav-profile-text" style={{ textAlign: "right" }}>
                 <div style={{ color: "#0b1c30", fontSize: 14, fontWeight: 500 }}>{profileName}</div>
                 <div style={{ color: "#737686", fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase" }}>Premium Plan</div>
               </div>
             </Link>
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+          <div className="kollab-nav-auth" style={{ display: "flex", gap: 24, alignItems: "center" }}>
             <Link to="/login" style={{ fontWeight: 600, color: colors.gray, fontSize: 14, letterSpacing: 0.28, textDecoration: "none" }}>Login</Link>
             <Link
               to="/signup"
