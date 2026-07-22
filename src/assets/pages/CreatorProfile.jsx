@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import { useAuth } from "../context/useAuth";
 
 const PROFILE = {
   name: "Linh Nguyen",
@@ -304,12 +305,7 @@ export default function CreatorProfile() {
 
   // Viewing a profile is public; inviting a creator to a campaign requires
   // an account. Gate the action, not the page.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { isLoggedIn, role } = useAuth();
 
   const handleInviteClick = () => {
     if (isLoggedIn) {

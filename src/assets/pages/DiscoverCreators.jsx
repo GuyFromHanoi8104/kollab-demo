@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
+import { useAuth } from "../context/useAuth";
 
 const CREATORS = [
   {
@@ -281,12 +282,7 @@ export default function DiscoverCreators() {
   // and "Saved Lists" are inherently account-tied concepts (nowhere to
   // persist them for an anonymous visitor), so they're hidden entirely when
   // logged out rather than shown empty/fake.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { isLoggedIn, role } = useAuth();
 
   const toggleCompare = (id) => {
     setCompared((prev) => {
