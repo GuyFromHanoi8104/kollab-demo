@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
+import { useAuth } from "../context/useAuth";
 
 // Reusing brand names already established elsewhere in the app (Landing
 // Page's Active Brands, Campaigns Browse) instead of inventing new ones,
@@ -230,12 +231,7 @@ export default function DiscoverBrands() {
   const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "campaigns" | "creators"
   const [profileBrand, setProfileBrand] = useState(null);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { isLoggedIn, role } = useAuth();
 
   const ALL_INDUSTRIES = [...new Set(BRANDS.map((b) => b.industry))];
   const SORT_OPTIONS = ["relevance", "campaigns", "creators"];

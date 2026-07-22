@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import KollabLogo from "./KollabLogo";
 import { appColors } from "./appColors";
+import { useAuth } from "../context/useAuth";
 
 function GridIcon({ color }) {
   return (
@@ -128,11 +129,8 @@ function NavLink({ to, label, Icon, active, onNavigate }) {
 // creator: "profile"|"discover"|"discover-brands"|"campaigns"|"messages"|"settings"
 // role: "brand" (default) | "creator"
 export default function AppSidebar({ activeItem, role = "brand" }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { isLoggedIn } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-  }, []);
 
   const NAV_ITEMS = role === "creator" ? CREATOR_NAV_ITEMS : BRAND_NAV_ITEMS;
   const closeMobile = () => setMobileOpen(false);

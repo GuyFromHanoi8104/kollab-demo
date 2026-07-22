@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import MarketingNavBar from "../components/MarketingNavBar";
 import Footer from "../components/Footer";
+import { useAuth } from "../context/useAuth";
 
 const colors = {
   navy: "#0b1c30",
@@ -205,12 +206,7 @@ export default function CampaignsBrowse() {
   // This was missing entirely -- MarketingNavBar defaults isLoggedIn to
   // false when not passed a prop, so this page always showed the logged-out
   // header regardless of actual session state. Real bug, not a stale file.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { isLoggedIn, role } = useAuth();
 
   // Applying is a creator-only action -- brands manage campaigns, they
   // don't apply to them (established rule). Guests get sent to log in

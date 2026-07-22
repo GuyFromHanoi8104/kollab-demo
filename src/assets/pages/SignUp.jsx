@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import TransactionalHeader from "../components/TransactionalHeader";
+import { supabase } from "../../supabaseClient";
 
 const colors = {
   navy: "#191c1e",
@@ -157,17 +158,39 @@ function Footer() {
 
 export default function SignUp() {
   const [role, setRole] = useState(null); // null | "creator" | "brand"
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
   const navigate = useNavigate();
 
   const subtext = role ? ROLE_SUBTEXT[role] : ROLE_SUBTEXT.none;
 
-  // Mock signup -- no real backend yet. This is the ONE place role gets
-  // chosen; from here on, Login just remembers it, matching how a real
-  // account system would work (you don't re-pick your role every login).
-  const handleGoogleSignup = () => {
-    if (!role) return; // button is disabled until a role is picked, but guard anyway
-    sessionStorage.setItem("kollab_mock_logged_in", "true");
-    sessionStorage.setItem("kollab_mock_role", role);
+  // This is the ONE place role gets chosen -- it's passed as signup metadata
+  // so the `handle_new_user` DB trigger can read it and populate the
+  // `profiles` row. From here on, Login just reads the profile back.
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    if (!role) return; // submit is disabled until a role is picked, but guard anyway
+    setError("");
+    setSubmitting(true);
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { role, name } },
+    });
+    setSubmitting(false);
+    if (signUpError) {
+      setError(signUpError.message);
+      return;
+    }
+    // If email confirmation is required, Supabase returns no session yet.
+    if (!data.session) {
+      setCheckEmail(true);
+      return;
+    }
     navigate("/");
   };
 
@@ -254,24 +277,92 @@ export default function SignUp() {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
-              <SocialButton icon={<GoogleIcon />} label="Continue with Google" onClick={handleGoogleSignup} disabled={!role} />
-              <SocialButton icon={<InstagramIcon />} label="Continue with Instagram" />
-              <SocialButton icon={<TikTokIcon />} label="Continue with TikTok" />
-            </div>
+            {checkEmail ? (
+              <div style={{ textAlign: "center", padding: "8px 0" }}>
+                <p style={{ fontWeight: 700, color: colors.navy, fontSize: 16, margin: "0 0 8px 0" }}>Check your email</p>
+                <p style={{ color: colors.gray, fontSize: 14, lineHeight: "22px", margin: 0 }}>
+                  We sent a confirmation link to <strong>{email}</strong>. Confirm your address to finish creating your account.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSignUp} style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+                  <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+                  <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+                  <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
+                  />
+                </div>
 
-            <div style={{ display: "flex", width: "100%" }}>
-              <input
-                type="checkbox"
-                required
-                style={{ width: 16, height: 16, marginTop: 2, borderRadius: 4, border: "1px solid #c3c6d7", accentColor: colors.blue, flexShrink: 0 }}
-              />
-              <p style={{ color: colors.gray, fontSize: 12, lineHeight: "16px", margin: 0, paddingLeft: 12 }}>
-                By continuing, you agree to our{" "}
-                <a href="/terms" style={{ color: colors.blueDark, textDecoration: "none" }}>Terms of Service</a>{" "}
-                and <a href="/privacy" style={{ color: colors.blueDark, textDecoration: "none" }}>Privacy Policy</a>.
-              </p>
-            </div>
+                <div style={{ display: "flex", width: "100%" }}>
+                  <input
+                    type="checkbox"
+                    required
+                    style={{ width: 16, height: 16, marginTop: 2, borderRadius: 4, border: "1px solid #c3c6d7", accentColor: colors.blue, flexShrink: 0 }}
+                  />
+                  <p style={{ color: colors.gray, fontSize: 12, lineHeight: "16px", margin: 0, paddingLeft: 12 }}>
+                    By continuing, you agree to our{" "}
+                    <a href="/terms" style={{ color: colors.blueDark, textDecoration: "none" }}>Terms of Service</a>{" "}
+                    and <a href="/privacy" style={{ color: colors.blueDark, textDecoration: "none" }}>Privacy Policy</a>.
+                  </p>
+                </div>
+
+                {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+
+                <button
+                  type="submit"
+                  disabled={!role || submitting}
+                  style={{
+                    background: colors.blue,
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "13px 25px",
+                    width: "100%",
+                    fontWeight: 700,
+                    color: "white",
+                    fontSize: 14,
+                    cursor: !role || submitting ? "not-allowed" : "pointer",
+                    opacity: !role || submitting ? 0.6 : 1,
+                  }}
+                >
+                  {submitting ? "Creating account…" : "Create Account"}
+                </button>
+
+                <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+                  <div style={{ flex: 1, height: 1, background: "#e0e3e5" }} />
+                  <span style={{ padding: "0 16px", color: "#737686", fontSize: 12, fontWeight: 500 }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: "#e0e3e5" }} />
+                </div>
+
+                <SocialButton icon={<GoogleIcon />} label="Continue with Google" />
+                <SocialButton icon={<InstagramIcon />} label="Continue with Instagram" />
+                <SocialButton icon={<TikTokIcon />} label="Continue with TikTok" />
+              </form>
+            )}
 
             <div style={{ borderTop: "1px solid #c3c6d7", width: "100%", paddingTop: 33, textAlign: "center" }}>
               <span style={{ color: colors.gray, fontSize: 16, lineHeight: "24px" }}>Already have an account? </span>

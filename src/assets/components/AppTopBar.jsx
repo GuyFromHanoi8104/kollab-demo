@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { appColors } from "./appColors";
+import { useAuth } from "../context/useAuth";
 
 function BellIcon({ color }) {
   return (
@@ -42,10 +42,7 @@ export function Breadcrumb({ text, current }) {
 
 // left: JSX for the left slot -- pass <SearchBox .../> or <Breadcrumb .../>
 export default function AppTopBar({ left, userName = "Kollab Demo", plan = "PREMIUM PLAN" }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-  }, []);
+  const { isLoggedIn } = useAuth();
 
   return (
     <header

@@ -13,9 +13,11 @@ import SavedCreators from "./assets/pages/SavedCreators";
 import Messages from "./assets/pages/Messages";
 import MyProfile from "./assets/pages/MyProfile";
 import ProtectedRoute from "./assets/components/ProtectedRoute";
+import { AuthProvider } from "./assets/context/AuthContext";
 
 export default function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -33,5 +35,6 @@ export default function App() {
         <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
+    </AuthProvider>
   );
 }

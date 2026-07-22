@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import { useAuth } from "../context/useAuth";
 
 const CONVERSATIONS = [
   { id: "hoangyen", name: "Hoang Yen", initial: "H", campaign: "Protein Powder Launch", unread: true },
@@ -52,10 +53,7 @@ export default function Messages() {
   const [draft, setDraft] = useState("");
   const [mobileShowThread, setMobileShowThread] = useState(false);
 
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { role } = useAuth();
 
   const handleSelectConvo = (id) => {
     setActiveId(id);

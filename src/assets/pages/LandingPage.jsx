@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import Footer from "../components/Footer";
 import MarketingNavBar from "../components/MarketingNavBar";
+import { useAuth } from "../context/useAuth";
 
 const colors = {
   navy: "#191c1e",
@@ -279,17 +280,7 @@ function BrandRow({ brand }) {
 
 export default function LandingPage() {
   const [mode, setMode] = useState("kols"); // "kols" | "campaigns"
-
-  // Mock login state -- there's no real backend/auth yet, so Login.jsx's
-  // "Continue with Google" button just sets this flag and sends the user
-  // back here. Swap this for real auth state (e.g. from a context/provider)
-  // once login actually exists.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setIsLoggedIn(sessionStorage.getItem("kollab_mock_logged_in") === "true");
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { isLoggedIn, role } = useAuth();
 
   return (
     <div

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import TransactionalHeader from "../components/TransactionalHeader";
+import { supabase } from "../../supabaseClient";
 
 const colors = {
   navy: "#191c1e",
@@ -112,16 +113,22 @@ function Footer() {
 
 export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  // Mock login -- no real backend/auth yet. A real system would already
-  // know the account's role; here, that's whatever was set the last time
-  // someone completed Sign Up (see SignUp.jsx). Defaults to "brand" only
-  // for the edge case of hitting Login before ever signing up.
-  const handleGoogleLogin = () => {
-    const existingRole = sessionStorage.getItem("kollab_mock_role") || "brand";
-    sessionStorage.setItem("kollab_mock_logged_in", "true");
-    sessionStorage.setItem("kollab_mock_role", existingRole);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    setSubmitting(false);
+    if (signInError) {
+      setError(signInError.message);
+      return;
+    }
     navigate("/");
   };
 
@@ -212,11 +219,64 @@ export default function Login() {
             </p>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
-            <SocialButton icon={<GoogleIcon />} label="Continue with Google" onClick={handleGoogleLogin} />
-            <SocialButton icon={<InstagramIcon />} label="Continue with Instagram" />
-            <SocialButton icon={<TikTokIcon />} label="Continue with TikTok" />
-          </div>
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+              <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Email</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+              <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Password</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+              <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ width: 16, height: 16, borderRadius: 4, border: "1px solid #c3c6d7", accentColor: colors.blue }}
+                />
+                <span style={{ color: colors.gray, fontSize: 12, fontWeight: 500 }}>Remember me</span>
+              </label>
+              <a href="/forgot-password" style={{ color: colors.blueDark, fontSize: 12, fontWeight: 500, textDecoration: "none" }}>
+                Forgot password?
+              </a>
+            </div>
+
+            {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                background: colors.blue,
+                border: "none",
+                borderRadius: 8,
+                padding: "13px 25px",
+                width: "100%",
+                fontWeight: 700,
+                color: "white",
+                fontSize: 14,
+                cursor: submitting ? "not-allowed" : "pointer",
+                opacity: submitting ? 0.7 : 1,
+              }}
+            >
+              {submitting ? "Logging in…" : "Log In"}
+            </button>
+          </form>
 
           <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
             <div style={{ flex: 1, height: 1, background: "#e0e3e5" }} />
@@ -224,19 +284,10 @@ export default function Login() {
             <div style={{ flex: 1, height: 1, background: "#e0e3e5" }} />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ width: 16, height: 16, borderRadius: 4, border: "1px solid #c3c6d7", accentColor: colors.blue }}
-              />
-              <span style={{ color: colors.gray, fontSize: 12, fontWeight: 500 }}>Remember me</span>
-            </label>
-            <a href="/forgot-password" style={{ color: colors.blueDark, fontSize: 12, fontWeight: 500, textDecoration: "none" }}>
-              Forgot password?
-            </a>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
+            <SocialButton icon={<GoogleIcon />} label="Continue with Google" />
+            <SocialButton icon={<InstagramIcon />} label="Continue with Instagram" />
+            <SocialButton icon={<TikTokIcon />} label="Continue with TikTok" />
           </div>
 
           <div style={{ width: "100%", textAlign: "center" }}>

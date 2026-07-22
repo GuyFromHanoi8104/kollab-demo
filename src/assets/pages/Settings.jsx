@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import UpgradeModal from "../components/UpgradeModal";
+import { useAuth } from "../context/useAuth";
 
 const MOCK_INVOICES = [
   { date: "Jul 1, 2026", amount: "$49.00", status: "Paid" },
@@ -218,10 +219,7 @@ export default function Settings() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
 
-  const [role, setRole] = useState("brand");
-  useEffect(() => {
-    setRole(sessionStorage.getItem("kollab_mock_role") || "brand");
-  }, []);
+  const { role, signOut } = useAuth();
 
   // Dummy pre-filled account fields -- editable locally, nothing persists
   // past this session. NOTE: still shows brand-oriented defaults (Company
@@ -244,8 +242,8 @@ export default function Settings() {
 
   const [twoFactor, setTwoFactor] = useState(false);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("kollab_mock_logged_in");
+  const handleLogout = async () => {
+    await signOut();
     navigate("/");
   };
 
@@ -254,10 +252,9 @@ export default function Settings() {
     setTimeout(() => setSavedToast(false), 2500);
   };
 
-  const handleAccountDeleted = () => {
+  const handleAccountDeleted = async () => {
     setDeleteModalOpen(false);
-    sessionStorage.removeItem("kollab_mock_logged_in");
-    sessionStorage.removeItem("kollab_mock_role");
+    await signOut();
     navigate("/");
   };
 
