@@ -245,12 +245,58 @@ export default function CampaignsBrowse() {
         .kollab-campaigns-browse, .kollab-campaigns-browse *, .kollab-campaigns-browse *::before, .kollab-campaigns-browse *::after {
           box-sizing: border-box;
         }
+        @media (max-width: 768px) {
+          .kollab-campaigns-hero {
+            padding: 96px 16px 0 16px !important;
+          }
+          .kollab-campaigns-heading {
+            font-size: 32px !important;
+            letter-spacing: -0.8px !important;
+          }
+          .kollab-campaigns-search-input {
+            padding-right: 16px !important;
+          }
+          .kollab-campaigns-search-btn {
+            display: none !important;
+          }
+          .kollab-campaigns-featured-split {
+            flex-direction: column !important;
+          }
+          .kollab-campaigns-featured-content {
+            padding: 24px !important;
+          }
+          .kollab-campaigns-featured-meta {
+            gap: 24px !important;
+            flex-wrap: wrap !important;
+          }
+          .kollab-campaigns-featured-actions {
+            flex-direction: column !important;
+          }
+          .kollab-campaigns-featured-actions button {
+            width: 100% !important;
+          }
+          .kollab-campaigns-new-opps-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px !important;
+          }
+          .kollab-campaigns-cta {
+            padding: 40px 24px !important;
+          }
+          .kollab-campaigns-cta h2 {
+            font-size: 32px !important;
+          }
+          .kollab-campaigns-stats {
+            flex-direction: column !important;
+            gap: 32px !important;
+          }
+        }
       `}</style>
 
       <MarketingNavBar activeTab="campaigns" isLoggedIn={isLoggedIn} role={role} />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", padding: "128px 24px 0 24px" }}>
-        <h1 style={{ fontWeight: 800, color: colors.navy, fontSize: 56, letterSpacing: -1.5, textAlign: "center", margin: 0 }}>Discover Campaigns</h1>
+      <div className="kollab-campaigns-hero" style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", padding: "128px 24px 0 24px" }}>
+        <h1 className="kollab-campaigns-heading" style={{ fontWeight: 800, color: colors.navy, fontSize: 56, letterSpacing: -1.5, textAlign: "center", margin: 0 }}>Discover Campaigns</h1>
         <p style={{ color: colors.gray, fontSize: 18, textAlign: "center", maxWidth: 672, margin: 0 }}>Browse collaboration opportunities from leading brands across Vietnam.</p>
 
         <div style={{ position: "relative", maxWidth: 768, width: "100%", marginTop: 20 }}>
@@ -259,12 +305,13 @@ export default function CampaignsBrowse() {
           </div>
           <input
             type="text"
+            className="kollab-campaigns-search-input"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="Search brands, industries, or keywords..."
             style={{ width: "100%", height: 64, border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", padding: "0 130px 0 65px", fontSize: 16, color: colors.navy, outline: "none", boxSizing: "border-box" }}
           />
-          <button type="button" style={{ position: "absolute", right: 8, top: 8, bottom: 8, background: colors.blue, border: "none", borderRadius: 16, padding: "0 32px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer" }}>
+          <button type="button" className="kollab-campaigns-search-btn" style={{ position: "absolute", right: 8, top: 8, bottom: 8, background: colors.blue, border: "none", borderRadius: 16, padding: "0 32px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer" }}>
             Search
           </button>
         </div>
@@ -287,8 +334,8 @@ export default function CampaignsBrowse() {
       </div>
 
       <div style={{ maxWidth: 1280, margin: "48px auto 0 auto", padding: "0 24px" }}>
-        <div style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", display: "flex" }}>
-          <div style={{ flex: 1, padding: 56, display: "flex", flexDirection: "column", gap: 24 }}>
+        <div className="kollab-campaigns-featured-split" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", display: "flex" }}>
+          <div className="kollab-campaigns-featured-content" style={{ flex: 1, padding: 56, display: "flex", flexDirection: "column", gap: 24 }}>
             <span style={{ display: "inline-flex", gap: 8, alignItems: "center", background: "#dbeafe", borderRadius: 8, padding: "6px 14px", fontWeight: 700, color: colors.blue, fontSize: 12, letterSpacing: 1.2, width: "fit-content" }}>
               FEATURED OPPORTUNITY
             </span>
@@ -298,7 +345,7 @@ export default function CampaignsBrowse() {
             </div>
             <h2 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, lineHeight: "36px", margin: 0 }}>{FEATURED.title}</h2>
             <p style={{ color: colors.gray, fontSize: 16, lineHeight: "26px", margin: 0 }}>{FEATURED.description}</p>
-            <div style={{ display: "flex", gap: 48 }}>
+            <div className="kollab-campaigns-featured-meta" style={{ display: "flex", gap: 48 }}>
               <div>
                 <div style={{ color: colors.grayLight, fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Estimated Budget</div>
                 <div style={{ color: colors.blue, fontWeight: 800, fontSize: 24 }}>{FEATURED.budget}</div>
@@ -308,7 +355,7 @@ export default function CampaignsBrowse() {
                 <div style={{ color: colors.navy, fontWeight: 800, fontSize: 24 }}>{FEATURED.deadline}</div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 16 }}>
+            <div className="kollab-campaigns-featured-actions" style={{ display: "flex", gap: 16 }}>
               <button
                 type="button"
                 onClick={handleFeaturedApplyClick}
@@ -333,7 +380,7 @@ export default function CampaignsBrowse() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1280, margin: "56px auto 0 auto", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+      <div className="kollab-campaigns-new-opps-header" style={{ maxWidth: 1280, margin: "56px auto 0 auto", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <h3 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, letterSpacing: -0.75, margin: 0 }}>New Opportunities</h3>
           <p style={{ color: colors.gray, fontSize: 16, margin: "4px 0 0 0" }}>Freshly posted campaigns tailored for your niche.</p>
@@ -369,7 +416,7 @@ export default function CampaignsBrowse() {
 
       {!(isLoggedIn && role === "creator") && (
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px" }}>
-          <div style={{ background: "#1e3a8a", borderRadius: 40, padding: 80, display: "flex", flexDirection: "column", gap: 24, alignItems: "center" }}>
+          <div className="kollab-campaigns-cta" style={{ background: "#1e3a8a", borderRadius: 40, padding: 80, display: "flex", flexDirection: "column", gap: 24, alignItems: "center" }}>
             <h2 style={{ fontWeight: 800, color: "white", fontSize: 48, textAlign: "center", margin: 0 }}>Find brand collaborations faster.</h2>
             <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, textAlign: "center", maxWidth: 672, margin: 0 }}>
               Join thousands of creators in Vietnam who are already scaling their career with Kollab's direct-to-brand marketplace.
@@ -381,7 +428,7 @@ export default function CampaignsBrowse() {
         </div>
       )}
 
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "65px 24px", display: "flex", gap: 64, justifyContent: "center", borderTop: `1px solid ${colors.border}`, borderBottom: `1px solid ${colors.border}` }}>
+      <div className="kollab-campaigns-stats" style={{ maxWidth: 1280, margin: "0 auto", padding: "65px 24px", display: "flex", gap: 64, justifyContent: "center", borderTop: `1px solid ${colors.border}`, borderBottom: `1px solid ${colors.border}` }}>
         {STATS.map((stat) => (
           <div key={stat.label} style={{ flex: 1, textAlign: "center" }}>
             <div style={{ color: colors.blue, fontWeight: 800, fontSize: 48 }}>{stat.value}</div>
