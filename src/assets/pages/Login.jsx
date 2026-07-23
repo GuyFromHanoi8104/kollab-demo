@@ -46,6 +46,54 @@ function TikTokIcon() {
   );
 }
 
+function EyeIcon({ color }) {
+  return (
+    <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 7s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6Z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="9" cy="7" r="2.5" stroke={color} strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function EyeOffIcon({ color }) {
+  return (
+    <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 7s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6Z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="9" cy="7" r="2.5" stroke={color} strokeWidth="1.4" />
+      <path d="M1 1l16 12" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Toggle button for password visibility -- absolutely positioned inside the
+// input's wrapper (which needs position:relative). type="button" so it
+// never submits the surrounding form.
+function PasswordToggle({ visible, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={visible ? "Hide password" : "Show password"}
+      style={{
+        position: "absolute",
+        right: 14,
+        top: "50%",
+        transform: "translateY(-50%)",
+        background: "none",
+        border: "none",
+        padding: 0,
+        margin: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+      }}
+    >
+      {visible ? <EyeOffIcon color={colors.gray} /> : <EyeIcon color={colors.gray} />}
+    </button>
+  );
+}
+
 
 function SocialButton({ icon, label, onClick }) {
   return (
@@ -115,6 +163,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -232,13 +281,16 @@ export default function Login() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
               <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
-              />
+              <div style={{ position: "relative", width: "100%" }}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ width: "100%", background: "white", border: "1px solid #c3c6d7", borderRadius: 8, padding: "11px 44px 11px 14px", fontSize: 14, color: colors.navy, outline: "none", boxSizing: "border-box", colorScheme: "light" }}
+                />
+                <PasswordToggle visible={showPassword} onClick={() => setShowPassword((v) => !v)} />
+              </div>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
