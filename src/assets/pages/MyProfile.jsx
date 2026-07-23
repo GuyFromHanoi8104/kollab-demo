@@ -301,7 +301,7 @@ export default function MyProfile() {
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
                     <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 36, letterSpacing: -0.9, margin: 0 }}>{displayName}</h1>
-                    <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16 }}>{handle}</div>
+                    <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16, marginTop: 6 }}>{handle}</div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                       {tags.map((tag) => (
                         <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 600, fontSize: 12, borderRadius: 9999, padding: "6px 16px" }}>{tag}</span>
