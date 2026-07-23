@@ -2,17 +2,14 @@ import { useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import { useAuth } from "../context/useAuth";
+import { supabase } from "../../supabaseClient";
 
-// This is the logged-in creator's own demo persona -- distinct from Linh
-// Nguyen (the third-party creator brands view on Creator Profile), Bao Tran,
-// Minh Review, Thanh Beauty, and Khoa Fitness, so there's no name collision
-// with anyone else already in the app.
-const PROFILE = {
-  name: "Mai Tran",
-  handle: "@mai.styles",
-  tags: ["Fashion", "Lifestyle"],
-  bio: "Fashion and lifestyle creator based in Hanoi, focused on accessible everyday style and city life. Building an engaged community around real, wearable outfits rather than unattainable trends.",
-  location: "Hanoi, Vietnam",
+// Extras that don't have a `profiles` column yet (languages, response time,
+// campaign preferences) -- stay mock until there's a real data source for
+// them. Name/handle/bio/location/tags come from the real profile instead,
+// see the component body.
+const PROFILE_EXTRAS = {
   languages: "Vietnamese, English",
   memberSince: "Mar 2026",
   responseNote: "Responds within 4 hours (99% Rate)",
@@ -191,13 +188,30 @@ function InvitationCard({ invite, onRespond }) {
 }
 
 export default function MyProfile() {
+  const { user, profile, refreshProfile } = useAuth();
   const [invitations, setInvitations] = useState(INITIAL_INVITATIONS);
   const [respondedLog, setRespondedLog] = useState([]);
   const [linkCopied, setLinkCopied] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
-  const [bio, setBio] = useState(PROFILE.bio);
-  const [quickNote, setQuickNote] = useState(PROFILE.quickNote);
+  const [saving, setSaving] = useState(false);
+  const [bio, setBio] = useState("");
+  const [seededProfileId, setSeededProfileId] = useState(null);
+  const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
+
+  // Seed the editable bio from the real profile once it loads -- quickNote
+  // has no column yet, so it stays local/mock (see PROFILE_EXTRAS above).
+  // Adjusting state during render (not in an effect) per React's guidance
+  // for "resetting state when a prop/external value changes".
+  if (profile && profile.id !== seededProfileId) {
+    setSeededProfileId(profile.id);
+    setBio(profile.bio || "");
+  }
+
+  const displayName = profile?.name || "Your name";
+  const handle = profile?.handle || "@add-your-handle";
+  const tags = profile?.niche?.length ? profile.niche : ["Add your niches"];
+  const location = profile?.location || "Add your location";
 
   const handleRespond = (id, decision) => {
     const invite = invitations.find((i) => i.id === id);
@@ -211,7 +225,12 @@ export default function MyProfile() {
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setSaving(true);
+    await supabase.from("profiles").update({ bio }).eq("id", user.id);
+    await refreshProfile();
+    setSaving(false);
     setEditModalOpen(false);
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2500);
@@ -269,7 +288,7 @@ export default function MyProfile() {
       `}</style>
 
       <AppSidebar activeItem="profile" role="creator" />
-      <AppTopBar left={<Breadcrumb text="Workspace /" current="My Profile" />} userName={PROFILE.name} plan="CREATOR PLAN" />
+      <AppTopBar left={<Breadcrumb text="Workspace /" current="My Profile" />} />
 
       <main className="kollab-my-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
         <div className="kollab-my-profile-split" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>
@@ -277,29 +296,29 @@ export default function MyProfile() {
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 33, boxShadow: "0px 20px 40px -10px rgba(79,124,255,0.08)" }}>
               <div className="kollab-my-profile-hero" style={{ display: "flex", gap: 32 }}>
-                <AvatarPlaceholder size={160} radius={20} label="M" />
+                <AvatarPlaceholder size={160} radius={20} label={displayName.charAt(0).toUpperCase()} />
 
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
-                    <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 36, letterSpacing: -0.9, margin: 0 }}>{PROFILE.name}</h1>
-                    <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16 }}>{PROFILE.handle}</div>
+                    <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 36, letterSpacing: -0.9, margin: 0 }}>{displayName}</h1>
+                    <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16 }}>{handle}</div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      {PROFILE.tags.map((tag) => (
+                      {tags.map((tag) => (
                         <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 600, fontSize: 12, borderRadius: 9999, padding: "6px 16px" }}>{tag}</span>
                       ))}
                     </div>
                   </div>
 
-                  <p style={{ color: appColors.gray, fontSize: 16, lineHeight: "26px", margin: 0, maxWidth: 672 }}>{bio}</p>
+                  <p style={{ color: appColors.gray, fontSize: 16, lineHeight: "26px", margin: 0, maxWidth: 672 }}>{bio || "Add a bio to tell brands about yourself."}</p>
 
                   <div className="kollab-my-profile-info-grid" style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><LocationIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE.location}</span></div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><GlobeIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE.languages}</span></div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><LocationIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{location}</span></div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><GlobeIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>{PROFILE_EXTRAS.languages}</span></div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><CalendarIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>Member since {PROFILE.memberSince}</span></div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><ClockIcon color={appColors.primary} /><span style={{ color: appColors.primary, fontSize: 14 }}>{PROFILE.responseNote}</span></div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><CalendarIcon color={appColors.grayLight} /><span style={{ color: appColors.grayLight, fontSize: 14 }}>Member since {PROFILE_EXTRAS.memberSince}</span></div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}><ClockIcon color={appColors.primary} /><span style={{ color: appColors.primary, fontSize: 14 }}>{PROFILE_EXTRAS.responseNote}</span></div>
                     </div>
                   </div>
                 </div>
@@ -531,8 +550,8 @@ export default function MyProfile() {
                 style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
               />
             </div>
-            <button type="button" onClick={handleSaveProfile} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
-              Save Changes
+            <button type="button" onClick={handleSaveProfile} disabled={saving} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+              {saving ? "Saving…" : "Save Changes"}
             </button>
           </div>
         </div>

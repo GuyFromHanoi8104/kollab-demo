@@ -127,12 +127,14 @@ function NavLink({ to, label, Icon, active, onNavigate }) {
 
 // activeItem depends on role -- brand: "dashboard"|"discover"|"campaigns"|"saved"|"messages"|"settings"
 // creator: "profile"|"discover"|"discover-brands"|"campaigns"|"messages"|"settings"
-// role: "brand" (default) | "creator"
-export default function AppSidebar({ activeItem, role = "brand" }) {
-  const { isLoggedIn } = useAuth();
+// role: defaults to the real logged-in account's role; pass explicitly only
+// to override (MyProfile always wants the creator nav regardless of account).
+export default function AppSidebar({ activeItem, role }) {
+  const { isLoggedIn, role: authRole } = useAuth();
+  const resolvedRole = role ?? authRole;
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const NAV_ITEMS = role === "creator" ? CREATOR_NAV_ITEMS : BRAND_NAV_ITEMS;
+  const NAV_ITEMS = resolvedRole === "creator" ? CREATOR_NAV_ITEMS : BRAND_NAV_ITEMS;
   const closeMobile = () => setMobileOpen(false);
 
   return (

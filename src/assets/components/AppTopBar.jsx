@@ -41,8 +41,11 @@ export function Breadcrumb({ text, current }) {
 }
 
 // left: JSX for the left slot -- pass <SearchBox .../> or <Breadcrumb .../>
-export default function AppTopBar({ left, userName = "Kollab Demo", plan = "PREMIUM PLAN" }) {
-  const { isLoggedIn } = useAuth();
+export default function AppTopBar({ left }) {
+  const { isLoggedIn, role, profile } = useAuth();
+  const userName = profile?.name || "Kollab Demo";
+  const plan = role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN";
+  const initial = userName.charAt(0).toUpperCase();
 
   return (
     <header
@@ -89,7 +92,7 @@ export default function AppTopBar({ left, userName = "Kollab Demo", plan = "PREM
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <span style={{ fontWeight: 700, color: appColors.primary, fontSize: 14 }}>K</span>
+              <span style={{ fontWeight: 700, color: appColors.primary, fontSize: 14 }}>{initial}</span>
             </div>
             <div className="kollab-topbar-profile-text" style={{ textAlign: "right" }}>
               <div style={{ color: appColors.navy, fontSize: 14, fontWeight: 500 }}>{userName}</div>

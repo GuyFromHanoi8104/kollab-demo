@@ -2,7 +2,6 @@ import { useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
-import { useAuth } from "../context/useAuth";
 
 const CONVERSATIONS = [
   { id: "hoangyen", name: "Hoang Yen", initial: "H", campaign: "Protein Powder Launch", unread: true },
@@ -52,8 +51,6 @@ export default function Messages() {
   const [activeId, setActiveId] = useState(CONVERSATIONS[0].id);
   const [draft, setDraft] = useState("");
   const [mobileShowThread, setMobileShowThread] = useState(false);
-
-  const { role } = useAuth();
 
   const handleSelectConvo = (id) => {
     setActiveId(id);
@@ -113,12 +110,8 @@ export default function Messages() {
         }
       `}</style>
 
-      <AppSidebar activeItem="messages" role={role} />
-      <AppTopBar
-        left={<Breadcrumb text="Workspace /" current="Messages" />}
-        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
-        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
-      />
+      <AppSidebar activeItem="messages" />
+      <AppTopBar left={<Breadcrumb text="Workspace /" current="Messages" />} />
 
       <main className="kollab-messages-main" style={{ marginLeft: 256, paddingTop: 64, height: "100vh", boxSizing: "border-box", display: "flex" }}>
         {/* Conversation list */}

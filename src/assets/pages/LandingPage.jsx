@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import Footer from "../components/Footer";
 import MarketingNavBar from "../components/MarketingNavBar";
-import { useAuth } from "../context/useAuth";
 
 const colors = {
   navy: "#191c1e",
@@ -280,7 +279,6 @@ function BrandRow({ brand }) {
 
 export default function LandingPage() {
   const [mode, setMode] = useState("kols"); // "kols" | "campaigns"
-  const { isLoggedIn, role } = useAuth();
 
   return (
     <div
@@ -357,7 +355,7 @@ export default function LandingPage() {
         }
       `}</style>
 
-      <MarketingNavBar activeTab="explore" isLoggedIn={isLoggedIn} role={role} />
+      <MarketingNavBar activeTab="explore" />
 
       <div className="kollab-hero-grid" style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 48, width: "100%", maxWidth: 1200, padding: "0 40px", boxSizing: "border-box" }}>
         {/* Main content, 8 cols */}

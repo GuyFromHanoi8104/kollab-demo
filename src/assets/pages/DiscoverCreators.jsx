@@ -203,7 +203,7 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
               <span style={{ color: appColors.navy, fontSize: 16 }}>{creator.name}</span>
               <VerifiedIcon />
             </div>
-            <div style={{ color: appColors.gray, fontSize: 14 }}>{creator.handle}</div>
+            <div style={{ color: appColors.gray, fontSize: 14, marginTop: 4 }}>{creator.handle}</div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             {creator.tags.map((tag) => (
@@ -282,7 +282,7 @@ export default function DiscoverCreators() {
   // and "Saved Lists" are inherently account-tied concepts (nowhere to
   // persist them for an anonymous visitor), so they're hidden entirely when
   // logged out rather than shown empty/fake.
-  const { isLoggedIn, role } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   const toggleCompare = (id) => {
     setCompared((prev) => {
@@ -351,12 +351,8 @@ export default function DiscoverCreators() {
         }
       `}</style>
 
-      <AppSidebar activeItem="discover" role={role} />
-      <AppTopBar
-        left={<Breadcrumb text="Workspace /" current={role === "creator" ? "Mai Tran" : "Kollab Demo"} />}
-        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
-        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
-      />
+      <AppSidebar activeItem="discover" />
+      <AppTopBar left={<Breadcrumb text="Workspace /" current="Discover Creators" />} />
 
       <main className="kollab-discover-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: comparedCreators.length > 0 ? 140 : 64, paddingLeft: 32, paddingRight: 32, display: "flex", gap: 32 }}>
         {/* Left: search + filters + creator grid */}
