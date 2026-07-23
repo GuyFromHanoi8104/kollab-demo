@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import KollabLogo from "./KollabLogo";
+import { useAuth } from "../context/useAuth";
 
 const colors = {
   navy: "#191c1e",
@@ -24,10 +25,11 @@ const NAV_LINKS = [
 ];
 
 // activeTab: "explore" | "campaigns" | "kols"
-export default function MarketingNavBar({ activeTab, isLoggedIn = false, role = "brand" }) {
+export default function MarketingNavBar({ activeTab }) {
+  const { isLoggedIn, role, profile } = useAuth();
   const profileDestination = role === "creator" ? "/my-profile" : "/dashboard";
-  const profileName = role === "creator" ? "Mai Tran" : "Kollab Demo";
-  const profileInitial = role === "creator" ? "M" : "K";
+  const profileName = profile?.name || "Kollab Demo";
+  const profileInitial = profileName.charAt(0).toUpperCase();
   return (
     <div
       className="kollab-marketing-nav"
@@ -98,7 +100,7 @@ export default function MarketingNavBar({ activeTab, isLoggedIn = false, role = 
               </div>
               <div className="kollab-nav-profile-text" style={{ textAlign: "right" }}>
                 <div style={{ color: "#0b1c30", fontSize: 14, fontWeight: 500 }}>{profileName}</div>
-                <div style={{ color: "#737686", fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase" }}>Premium Plan</div>
+                <div style={{ color: "#737686", fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase" }}>{role === "creator" ? "Creator Plan" : "Premium Plan"}</div>
               </div>
             </Link>
           </div>

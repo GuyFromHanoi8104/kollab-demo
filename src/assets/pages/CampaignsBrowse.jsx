@@ -289,7 +289,7 @@ export default function CampaignsBrowse() {
         }
       `}</style>
 
-      <MarketingNavBar activeTab="campaigns" isLoggedIn={isLoggedIn} role={role} />
+      <MarketingNavBar activeTab="campaigns" />
 
       <div className="kollab-campaigns-hero" style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", padding: "128px 24px 0 24px" }}>
         <h1 className="kollab-campaigns-heading" style={{ fontWeight: 800, color: colors.navy, fontSize: 56, letterSpacing: -1.5, textAlign: "center", margin: 0 }}>Discover Campaigns</h1>

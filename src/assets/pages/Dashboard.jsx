@@ -5,6 +5,7 @@ import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import Footer from "../components/Footer";
 import ReviewApplicationModal from "../components/ReviewApplicationModal";
+import { useAuth } from "../context/useAuth";
 
 function InstagramLogo() {
   return (
@@ -145,6 +146,7 @@ function ApplicationCard({ app, onReview, saved, onToggleSave }) {
 }
 
 export default function Dashboard() {
+  const { profile } = useAuth();
   const [applications, setApplications] = useState(INITIAL_APPLICATIONS);
   const [reviewingApp, setReviewingApp] = useState(null);
   const [savedApplications, setSavedApplications] = useState(new Set());
@@ -226,7 +228,7 @@ export default function Dashboard() {
       <main className="kollab-dashboard-main" style={{ marginLeft: 256, marginRight: 320, paddingTop: 96, paddingBottom: 64, paddingLeft: 24, paddingRight: 24, display: "flex", flexDirection: "column", gap: 48, boxSizing: "border-box" }}>
         <div style={{ background: appColors.primary, borderRadius: 16, padding: 48, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", width: "100%", boxSizing: "border-box" }}>
           <h1 style={{ color: "white", fontSize: 30, lineHeight: "40px", fontWeight: 600, letterSpacing: -0.6, margin: 0 }}>
-            Welcome back, Kollab Demo <span style={{ marginLeft: 4 }}>👋</span>
+            Welcome back, {profile?.name || "there"} <span style={{ marginLeft: 4 }}>👋</span>
           </h1>
           <p style={{ color: "white", opacity: 0.9, fontSize: 18, lineHeight: "28px", maxWidth: 576, margin: "8px 0 0 0" }}>
             Your campaigns are performing 12% better this week. You have 13 new creator applications waiting for review.
@@ -243,11 +245,11 @@ export default function Dashboard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", padding: 32, textAlign: "center" }}>
               <div style={{ width: 96, height: 96, borderRadius: 16, background: "#e2e8f0", margin: "0 auto 16px auto", boxShadow: "0 0 0 4px rgba(60,107,237,0.2)" }} />
-              <div style={{ fontWeight: 600, color: appColors.navy, fontSize: 24, letterSpacing: -0.24 }}>Kollab Demo</div>
-              <span style={{ display: "inline-block", marginTop: 8, color: appColors.primary, fontWeight: 600, fontSize: 14 }}>Software</span>
+              <div style={{ fontWeight: 600, color: appColors.navy, fontSize: 24, letterSpacing: -0.24 }}>{profile?.company_name || profile?.name || "Your Company"}</div>
+              <span style={{ display: "inline-block", marginTop: 8, color: appColors.primary, fontWeight: 600, fontSize: 14 }}>{profile?.industry || "Industry not set"}</span>
               <div style={{ borderTop: `1px solid ${appColors.border}`, marginTop: 16, paddingTop: 17, display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ color: appColors.gray, fontSize: 14 }}>www.kollabdemo.vn</div>
-                <div style={{ color: appColors.gray, fontSize: 14 }}>Hanoi, Vietnam</div>
+                <div style={{ color: appColors.gray, fontSize: 14 }}>{profile?.website || "No website yet"}</div>
+                <div style={{ color: appColors.gray, fontSize: 14 }}>{profile?.location || "Location not set"}</div>
               </div>
             </div>
 

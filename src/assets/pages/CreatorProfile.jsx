@@ -377,12 +377,8 @@ export default function CreatorProfile() {
         .kollab-scroll-row::-webkit-scrollbar-track { background: transparent; }
       `}</style>
 
-      <AppSidebar activeItem="discover" role={role} />
-      <AppTopBar
-        left={<SearchBox placeholder="Search creators, niches, or keywords..." />}
-        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
-        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
-      />
+      <AppSidebar activeItem="discover" />
+      <AppTopBar left={<SearchBox placeholder="Search creators, niches, or keywords..." />} />
 
       <main className="kollab-creator-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
         <div className="kollab-creator-profile-split" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>

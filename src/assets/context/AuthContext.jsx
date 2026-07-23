@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
 import { AuthContext } from "./authStore";
 
@@ -12,13 +12,13 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const loadProfile = useCallback(async (userId) => {
+    const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+    setProfile(data ?? null);
+  }, []);
+
   useEffect(() => {
     let active = true;
-
-    async function loadProfile(userId) {
-      const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
-      if (active) setProfile(data ?? null);
-    }
 
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       if (!active) return;
@@ -46,7 +46,14 @@ export function AuthProvider({ children }) {
       active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
+
+  // Consumers that write to their own `profiles` row (Settings, MyProfile)
+  // call this afterward so every component reading from useAuth() -- not
+  // just the one that made the edit -- sees the update immediately.
+  const refreshProfile = useCallback(() => {
+    return session?.user ? loadProfile(session.user.id) : Promise.resolve();
+  }, [session, loadProfile]);
 
   const value = {
     session,
@@ -57,6 +64,7 @@ export function AuthProvider({ children }) {
     isLoggedIn: !!session,
     loading,
     signOut: () => supabase.auth.signOut(),
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

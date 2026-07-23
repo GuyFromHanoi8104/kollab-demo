@@ -5,6 +5,7 @@ import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import UpgradeModal from "../components/UpgradeModal";
 import { useAuth } from "../context/useAuth";
+import { supabase } from "../../supabaseClient";
 
 const MOCK_INVOICES = [
   { date: "Jul 1, 2026", amount: "$49.00", status: "Paid" },
@@ -63,11 +64,17 @@ function SettingsCard({ title, description, children }) {
   );
 }
 
-function TextField({ label, value, onChange, type = "text" }) {
+function TextField({ label, value, onChange, type = "text", disabled = false }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 200 }}>
       <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13 }}>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={fieldStyle} />
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        style={{ ...fieldStyle, ...(disabled ? { color: appColors.grayLight, cursor: "not-allowed" } : {}) }}
+      />
     </div>
   );
 }
@@ -219,16 +226,33 @@ export default function Settings() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
 
-  const { role, signOut } = useAuth();
+  const { user, profile, role, signOut, refreshProfile } = useAuth();
 
-  // Dummy pre-filled account fields -- editable locally, nothing persists
-  // past this session. NOTE: still shows brand-oriented defaults (Company
-  // Name, brand website) regardless of role -- a real creator settings form
-  // would look different. Known gap, separate from this fix.
-  const [name, setName] = useState("Kollab Demo");
-  const [email, setEmail] = useState("demo@kollabdemo.vn");
-  const [company, setCompany] = useState("Kollab Demo");
-  const [website, setWebsite] = useState("www.kollabdemo.vn");
+  // Seeded from the real `profiles` row once it loads -- brand accounts
+  // edit company_name/industry/website, creator accounts edit handle/location
+  // (closes the old "always shows brand fields" gap). Email comes straight
+  // from the Supabase user and isn't editable here; changing it is a
+  // separate auth flow (re-confirmation), not just a profile column.
+  const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [website, setWebsite] = useState("");
+  const [handle, setHandle] = useState("");
+  const [location, setLocation] = useState("");
+  const [seededProfileId, setSeededProfileId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Adjusting state during render (not in an effect) per React's guidance
+  // for "resetting state when a prop/external value changes".
+  if (profile && profile.id !== seededProfileId) {
+    setSeededProfileId(profile.id);
+    setName(profile.name || "");
+    setCompany(profile.company_name || "");
+    setIndustry(profile.industry || "");
+    setWebsite(profile.website || "");
+    setHandle(profile.handle || "");
+    setLocation(profile.location || "");
+  }
 
   const [notifications, setNotifications] = useState({
     newApplications: true,
@@ -247,7 +271,16 @@ export default function Settings() {
     navigate("/");
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
+    if (!user) return;
+    setSaving(true);
+    const payload =
+      role === "brand"
+        ? { name, company_name: company, industry, website }
+        : { name, handle, location };
+    await supabase.from("profiles").update(payload).eq("id", user.id);
+    await refreshProfile();
+    setSaving(false);
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2500);
   };
@@ -283,12 +316,8 @@ export default function Settings() {
         }
       `}</style>
 
-      <AppSidebar activeItem="settings" role={role} />
-      <AppTopBar
-        left={<Breadcrumb text="Workspace /" current="Settings" />}
-        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
-        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
-      />
+      <AppSidebar activeItem="settings" />
+      <AppTopBar left={<Breadcrumb text="Workspace /" current="Settings" />} />
 
       <main className="kollab-settings-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, maxWidth: 800 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 32 }}>
@@ -297,18 +326,28 @@ export default function Settings() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <SettingsCard title="Account" description="Update your brand's basic information.">
+          <SettingsCard title="Account" description={role === "brand" ? "Update your brand's basic information." : "Update your creator profile's basic information."}>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               <TextField label="Full Name" value={name} onChange={setName} />
-              <TextField label="Email Address" value={email} onChange={setEmail} type="email" />
+              <TextField label="Email Address" value={user?.email ?? ""} onChange={() => {}} type="email" disabled />
             </div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <TextField label="Company Name" value={company} onChange={setCompany} />
-              <TextField label="Website" value={website} onChange={setWebsite} />
+              {role === "brand" ? (
+                <>
+                  <TextField label="Company Name" value={company} onChange={setCompany} />
+                  <TextField label="Industry" value={industry} onChange={setIndustry} />
+                  <TextField label="Website" value={website} onChange={setWebsite} />
+                </>
+              ) : (
+                <>
+                  <TextField label="Handle" value={handle} onChange={setHandle} />
+                  <TextField label="Location" value={location} onChange={setLocation} />
+                </>
+              )}
             </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <button type="button" onClick={handleSaveChanges} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
-                Save Changes
+              <button type="button" onClick={handleSaveChanges} disabled={saving} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                {saving ? "Saving…" : "Save Changes"}
               </button>
               {savedToast && (
                 <span style={{ display: "flex", gap: 6, alignItems: "center", color: "#16a34a", fontSize: 13, fontWeight: 600 }}>

@@ -299,12 +299,8 @@ export default function DiscoverBrands() {
           bigger "role split" task still pending). No matching nav item
           highlights here on purpose -- this page doesn't belong to the
           current brand-oriented nav. */}
-      <AppSidebar activeItem={role === "creator" ? "discover-brands" : null} role={role} />
-      <AppTopBar
-        left={<Breadcrumb text="Workspace /" current="Discover Brands" />}
-        userName={role === "creator" ? "Mai Tran" : "Kollab Demo"}
-        plan={role === "creator" ? "CREATOR PLAN" : "PREMIUM PLAN"}
-      />
+      <AppSidebar activeItem={role === "creator" ? "discover-brands" : null} />
+      <AppTopBar left={<Breadcrumb text="Workspace /" current="Discover Brands" />} />
 
       <main className="kollab-discover-brands-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, display: "flex", gap: 32 }}>
         <div style={{ flex: "1 1 640px", maxWidth: 640, minWidth: 0, display: "flex", flexDirection: "column", gap: 48 }}>
