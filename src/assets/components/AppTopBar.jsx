@@ -79,6 +79,18 @@ export default function AppTopBar({ left }) {
           .kollab-topbar-profile-text {
             display: none !important;
           }
+          .kollab-topbar-left {
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important;
+            max-width: 45vw !important;
+          }
+          .kollab-topbar-auth {
+            flex-shrink: 0 !important;
+          }
+          .kollab-topbar-auth a {
+            white-space: nowrap !important;
+          }
         }
       `}</style>
 
@@ -101,7 +113,7 @@ export default function AppTopBar({ left }) {
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <div className="kollab-topbar-auth" style={{ display: "flex", gap: 16, alignItems: "center" }}>
           <Link to="/login" style={{ fontWeight: 600, color: appColors.gray, fontSize: 14, textDecoration: "none" }}>Login</Link>
           <Link
             to="/signup"
