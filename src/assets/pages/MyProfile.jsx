@@ -1,9 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+
+// applications.status -> display label + colors, mirroring the STATUS_META
+// pattern used for campaigns.status in ManageCampaigns.jsx.
+const APPLICATION_STATUS_META = {
+  pending: { status: "Pending", statusColor: "#ea580c", dotColor: "#f97316" },
+  accepted: { status: "Accepted", statusColor: "#16a34a", dotColor: "#22c55e" },
+  declined: { status: "Declined", statusColor: appColors.grayLight, dotColor: appColors.border },
+};
+
+function formatBudget(campaign) {
+  const { budget_min: min, budget_max: max } = campaign ?? {};
+  if (min != null && max != null) return `$${min.toLocaleString()} – $${max.toLocaleString()}`;
+  if (max != null) return `Up to $${max.toLocaleString()}`;
+  if (min != null) return `From $${min.toLocaleString()}`;
+  return "Budget TBD";
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "No date";
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 // Extras that don't have a `profiles` column yet (languages, response time,
 // campaign preferences) -- stay mock until there's a real data source for
@@ -45,20 +66,6 @@ const PORTFOLIO = [
   { views: "158K", comments: "7K" },
   { views: "402K", comments: "26K" },
   { views: "220K", comments: "12K" },
-];
-
-// Reuses the exact same brand + campaign names as ManageCampaigns.jsx and
-// Campaigns Browse, so the demo world feels connected: campaigns a brand
-// creates/invites from show up here on the creator side too.
-const APPLICATIONS = [
-  { brand: "Azure Resorts", campaign: "Luxury Escape Content Creation", appliedOn: "Jul 12, 2026", status: "Pending", statusColor: "#ea580c", dotColor: "#f97316" },
-  { brand: "GLOW Skin", campaign: "Glow Morning Routine Reel", appliedOn: "Jul 8, 2026", status: "Accepted", statusColor: "#16a34a", dotColor: "#22c55e" },
-  { brand: "Vertex Tech", campaign: "New Gen Gaming Headset Review", appliedOn: "Jul 3, 2026", status: "Declined", statusColor: appColors.grayLight, dotColor: appColors.border },
-];
-
-const INITIAL_INVITATIONS = [
-  { id: "protein", brand: "Kollab Demo", campaign: "Protein Powder Launch", budget: "$3,000", deadline: "Aug 15, 2026" },
-  { id: "skincare", brand: "Kollab Demo", campaign: "Summer Skincare Bundle", budget: "$2,200", deadline: "Aug 30, 2026" },
 ];
 
 function LocationIcon({ color }) {
@@ -164,7 +171,7 @@ function StatCard({ label, value, color }) {
   );
 }
 
-function InvitationCard({ invite, onRespond }) {
+function InvitationCard({ invite, onRespond, busy }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 24, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
       <div>
@@ -176,10 +183,10 @@ function InvitationCard({ invite, onRespond }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" onClick={() => onRespond(invite.id, "declined")} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "10px 18px", fontWeight: 700, color: appColors.gray, fontSize: 13, cursor: "pointer" }}>
+        <button type="button" onClick={() => onRespond(invite.id, "declined")} disabled={busy} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "10px 18px", fontWeight: 700, color: appColors.gray, fontSize: 13, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
           Decline
         </button>
-        <button type="button" onClick={() => onRespond(invite.id, "accepted")} style={{ background: appColors.primary, border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, color: "white", fontSize: 13, cursor: "pointer" }}>
+        <button type="button" onClick={() => onRespond(invite.id, "accepted")} disabled={busy} style={{ background: appColors.primary, border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700, color: "white", fontSize: 13, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
           Accept
         </button>
       </div>
@@ -189,8 +196,12 @@ function InvitationCard({ invite, onRespond }) {
 
 export default function MyProfile() {
   const { user, profile, refreshProfile } = useAuth();
-  const [invitations, setInvitations] = useState(INITIAL_INVITATIONS);
+  const [applications, setApplications] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
   const [respondedLog, setRespondedLog] = useState([]);
+  const [respondingId, setRespondingId] = useState(null);
+  const [respondError, setRespondError] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -213,8 +224,91 @@ export default function MyProfile() {
   const tags = profile?.niche?.length ? profile.niche : ["Add your niches"];
   const location = profile?.location || "Add your location";
 
-  const handleRespond = (id, decision) => {
+  // Applications and invitations don't carry the brand/campaign name
+  // directly -- both join through campaigns to the owning brand's profile.
+  // Fetched as separate queries and combined client-side (not relying on
+  // Supabase relationship-embedding being configured), same pattern used
+  // for campaigns <-> profiles in ManageCampaigns/CampaignsBrowse.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      setDataLoading(true);
+      const [{ data: appRows }, { data: inviteRows }] = await Promise.all([
+        supabase.from("applications").select("*").eq("creator_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("invitations").select("*").eq("creator_id", user.id).eq("status", "pending").order("created_at", { ascending: false }),
+      ]);
+      const apps = appRows ?? [];
+      const invites = inviteRows ?? [];
+
+      const campaignIds = [...new Set([...apps.map((a) => a.campaign_id), ...invites.map((i) => i.campaign_id)])];
+      const campaignsById = {};
+      if (campaignIds.length > 0) {
+        const { data: campaignRows } = await supabase.from("campaigns").select("id, name, brand_id, budget_min, budget_max, deadline").in("id", campaignIds);
+        (campaignRows ?? []).forEach((c) => {
+          campaignsById[c.id] = c;
+        });
+      }
+
+      const brandIds = [...new Set(Object.values(campaignsById).map((c) => c.brand_id))];
+      const brandsById = {};
+      if (brandIds.length > 0) {
+        const { data: profileRows } = await supabase.from("profiles").select("id, name, company_name").in("id", brandIds);
+        (profileRows ?? []).forEach((p) => {
+          brandsById[p.id] = p;
+        });
+      }
+
+      const brandNameFor = (campaign) => {
+        const brand = campaign ? brandsById[campaign.brand_id] : null;
+        return brand?.company_name || brand?.name || "Brand";
+      };
+
+      if (!active) return;
+      setApplications(
+        apps.map((a) => {
+          const campaign = campaignsById[a.campaign_id];
+          const meta = APPLICATION_STATUS_META[a.status] ?? APPLICATION_STATUS_META.pending;
+          return {
+            id: a.id,
+            brand: brandNameFor(campaign),
+            campaign: campaign?.name || "Deleted campaign",
+            appliedOn: formatDate(a.created_at),
+            ...meta,
+          };
+        })
+      );
+      setInvitations(
+        invites.map((i) => {
+          const campaign = campaignsById[i.campaign_id];
+          return {
+            id: i.id,
+            brand: brandNameFor(campaign),
+            campaign: campaign?.name || "Deleted campaign",
+            budget: formatBudget(campaign),
+            deadline: campaign?.deadline ? formatDate(campaign.deadline) : "No deadline",
+          };
+        })
+      );
+      setDataLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const handleRespond = async (id, decision) => {
     const invite = invitations.find((i) => i.id === id);
+    if (!invite) return;
+    setRespondingId(id);
+    setRespondError("");
+    const status = decision === "accepted" ? "accepted" : "declined";
+    const { error } = await supabase.from("invitations").update({ status }).eq("id", id);
+    setRespondingId(null);
+    if (error) {
+      setRespondError("Couldn't update that invitation. Please try again.");
+      return;
+    }
     setInvitations((prev) => prev.filter((i) => i.id !== id));
     setRespondedLog((prev) => [...prev, { ...invite, decision }]);
   };
@@ -332,18 +426,21 @@ export default function MyProfile() {
             </div>
 
             {/* Invitations -- the creator-side mirror of a brand clicking
-                "Invite to Campaign". Reuses the exact same brand/campaign
-                names as ManageCampaigns.jsx so the demo world feels
-                connected across both personas. */}
+                "Invite to Campaign" (see ManageCampaigns.jsx / CreatorProfile.jsx). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Invitations</h3>
                 <span style={{ color: appColors.grayLight, fontSize: 13 }}>{invitations.length} pending</span>
               </div>
-              {invitations.length > 0 ? (
+              {respondError && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{respondError}</div>}
+              {dataLoading ? (
+                <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 32, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+                  Loading invitations…
+                </div>
+              ) : invitations.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {invitations.map((invite) => (
-                    <InvitationCard key={invite.id} invite={invite} onRespond={handleRespond} />
+                    <InvitationCard key={invite.id} invite={invite} onRespond={handleRespond} busy={respondingId === invite.id} />
                   ))}
                 </div>
               ) : (
@@ -354,7 +451,7 @@ export default function MyProfile() {
             </div>
 
             {/* Applications -- campaigns this creator applied to via Campaigns
-                Browse. Reuses those exact brand/campaign names too. */}
+                Browse (see CampaignsBrowse.jsx). */}
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>My Applications</h3>
               <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, overflow: "hidden" }}>
@@ -368,19 +465,29 @@ export default function MyProfile() {
                     </tr>
                   </thead>
                   <tbody>
-                    {APPLICATIONS.map((app) => (
-                      <tr key={app.campaign} style={{ borderBottom: `1px solid ${appColors.border}` }}>
-                        <td style={{ padding: "18px 24px", fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{app.brand}</td>
-                        <td style={{ padding: "18px 24px", color: appColors.gray, fontSize: 14 }}>{app.campaign}</td>
-                        <td style={{ padding: "18px 24px", color: appColors.grayLight, fontSize: 13 }}>{app.appliedOn}</td>
-                        <td style={{ padding: "18px 24px" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: app.statusColor, fontWeight: 700, fontSize: 13 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 9999, background: app.dotColor }} />
-                            {app.status}
-                          </span>
-                        </td>
+                    {dataLoading ? (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "24px", textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>Loading applications…</td>
                       </tr>
-                    ))}
+                    ) : applications.length > 0 ? (
+                      applications.map((app) => (
+                        <tr key={app.id} style={{ borderBottom: `1px solid ${appColors.border}` }}>
+                          <td style={{ padding: "18px 24px", fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{app.brand}</td>
+                          <td style={{ padding: "18px 24px", color: appColors.gray, fontSize: 14 }}>{app.campaign}</td>
+                          <td style={{ padding: "18px 24px", color: appColors.grayLight, fontSize: 13 }}>{app.appliedOn}</td>
+                          <td style={{ padding: "18px 24px" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: app.statusColor, fontWeight: 700, fontSize: 13 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: 9999, background: app.dotColor }} />
+                              {app.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "24px", textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>You haven't applied to any campaigns yet.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
                 </div>
