@@ -1,22 +1,28 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import CreateCampaignModal from "../components/CreateCampaignModal";
+import { NICHE_STYLES } from "../components/nicheStyles";
+import { useAuth } from "../context/useAuth";
+import { supabase } from "../../supabaseClient";
 
-const INITIAL_CAMPAIGNS = [
-  { id: 1, name: "Protein Powder Launch", niche: "FITNESS", nicheBg: "#dce1ff", nicheColor: "#003cad", budget: "$3,000", apps: 18, status: "Active", statusColor: "#16a34a", dotColor: "#22c55e" },
-  { id: 2, name: "Healthy Snacks", niche: "FOOD", nicheBg: "#eaddff", nicheColor: "#5a00c6", budget: "$1,500", apps: 7, status: "Reviewing", statusColor: "#ea580c", dotColor: "#f97316" },
-  { id: 3, name: "Summer Skincare Bundle", niche: "BEAUTY", nicheBg: "#ffe4f0", nicheColor: "#be185d", budget: "$2,200", apps: 0, status: "Draft", statusColor: appColors.grayLight, dotColor: appColors.border },
-  { id: 4, name: "New Year Blowout", niche: "LIFESTYLE", nicheBg: "#e5eeff", nicheColor: "#1550d3", budget: "$4,000", apps: 32, status: "Completed", statusColor: appColors.grayLight, dotColor: "#94a3b8" },
-];
+// Maps the real `campaigns.status` value (lowercase, DB default is "draft")
+// to the display label + colors the status pills/badges use.
+const STATUS_META = {
+  draft: { label: "Draft", statusColor: appColors.grayLight, dotColor: appColors.border },
+  active: { label: "Active", statusColor: "#16a34a", dotColor: "#22c55e" },
+  reviewing: { label: "Reviewing", statusColor: "#ea580c", dotColor: "#f97316" },
+  completed: { label: "Completed", statusColor: appColors.grayLight, dotColor: "#94a3b8" },
+};
 
-const STATS = [
-  { value: "2", label: "Active Campaigns", iconBg: "#dce1ff" },
-  { value: "$10,700", label: "Total Budget Allocated", iconBg: "#eaddff" },
-  { value: "57", label: "Total Applications", iconBg: "#ffdcc6" },
-  { value: "1", label: "Completed Campaigns", iconBg: appColors.primaryLight },
-];
+function formatBudget(campaign) {
+  const { budget_min: min, budget_max: max } = campaign;
+  if (min != null && max != null) return `$${min.toLocaleString()} – $${max.toLocaleString()}`;
+  if (max != null) return `$${max.toLocaleString()}`;
+  if (min != null) return `$${min.toLocaleString()}`;
+  return "—";
+}
 
 function ChevronDownIcon() {
   return (
@@ -54,7 +60,9 @@ function StatCard({ stat }) {
 }
 
 export default function ManageCampaigns() {
-  const [campaigns, setCampaigns] = useState(INITIAL_CAMPAIGNS);
+  const { user } = useAuth();
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("All");
   const [nicheFilter, setNicheFilter] = useState("All");
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -62,21 +70,93 @@ export default function ManageCampaigns() {
   const statuses = ["All", "Active", "Reviewing", "Draft", "Completed"];
   const niches = ["All", ...new Set(campaigns.map((c) => c.niche))];
 
+  // Applications don't come back embedded on the campaigns row -- fetched
+  // separately and tallied client-side per campaign_id, so this doesn't
+  // depend on Supabase's relationship-embedding being configured.
+  const loadCampaigns = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data: campaignRows } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("brand_id", user.id)
+      .order("created_at", { ascending: false });
+
+    const rows = campaignRows ?? [];
+    const ids = rows.map((c) => c.id);
+    const counts = {};
+    if (ids.length > 0) {
+      const { data: appRows } = await supabase.from("applications").select("campaign_id").in("campaign_id", ids);
+      (appRows ?? []).forEach((a) => {
+        counts[a.campaign_id] = (counts[a.campaign_id] || 0) + 1;
+      });
+    }
+
+    setCampaigns(rows.map((c) => ({ ...c, appsCount: counts[c.id] || 0 })));
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    // Fetch-on-mount/user-change -- the standard valid use of an effect;
+    // loadCampaigns is also reused directly by the mutation handlers below
+    // to refresh after a create/duplicate/delete.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadCampaigns();
+  }, [loadCampaigns]);
+
   const filtered = campaigns
-    .filter((c) => statusFilter === "All" || c.status === statusFilter)
+    .filter((c) => statusFilter === "All" || (STATUS_META[c.status]?.label ?? c.status) === statusFilter)
     .filter((c) => nicheFilter === "All" || c.niche === nicheFilter);
 
-  const handleCreateCampaign = (newCampaign) => {
-    setCampaigns((prev) => [newCampaign, ...prev]);
+  const activeCount = campaigns.filter((c) => c.status === "active").length;
+  const completedCount = campaigns.filter((c) => c.status === "completed").length;
+  const totalApplications = campaigns.reduce((sum, c) => sum + c.appsCount, 0);
+  const totalBudget = campaigns.reduce((sum, c) => sum + (c.budget_max ?? c.budget_min ?? 0), 0);
+  const stats = [
+    { value: String(activeCount), label: "Active Campaigns", iconBg: "#dce1ff" },
+    { value: `$${totalBudget.toLocaleString()}`, label: "Total Budget Allocated", iconBg: "#eaddff" },
+    { value: String(totalApplications), label: "Total Applications", iconBg: "#ffdcc6" },
+    { value: String(completedCount), label: "Completed Campaigns", iconBg: appColors.primaryLight },
+  ];
+
+  // Returns { error } (Supabase's own convention) so the modal can show its
+  // own error message and only close once the insert actually succeeds.
+  const handleCreateCampaign = async (form) => {
+    const { error } = await supabase.from("campaigns").insert({
+      brand_id: user.id,
+      name: form.name,
+      niche: form.niche,
+      budget_min: form.budgetMin,
+      budget_max: form.budgetMax,
+      platforms: form.platforms,
+      deadline: form.deadline,
+      brief: form.brief,
+      status: "draft",
+    });
+    if (!error) await loadCampaigns();
+    return { error };
   };
 
-  const handleDelete = (id) => {
-    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+  const handleDelete = async (id) => {
     setOpenMenuId(null);
+    await supabase.from("campaigns").delete().eq("id", id);
+    await loadCampaigns();
   };
-  const handleDuplicate = (campaign) => {
-    setCampaigns((prev) => [{ ...campaign, id: Date.now(), name: `${campaign.name} (Copy)`, status: "Draft", apps: 0, statusColor: appColors.grayLight, dotColor: appColors.border }, ...prev]);
+
+  const handleDuplicate = async (campaign) => {
     setOpenMenuId(null);
+    await supabase.from("campaigns").insert({
+      brand_id: user.id,
+      name: `${campaign.name} (Copy)`,
+      niche: campaign.niche,
+      budget_min: campaign.budget_min,
+      budget_max: campaign.budget_max,
+      platforms: campaign.platforms,
+      deadline: campaign.deadline,
+      brief: campaign.brief,
+      status: "draft",
+    });
+    await loadCampaigns();
   };
 
   return (
@@ -131,7 +211,7 @@ export default function ManageCampaigns() {
         </div>
 
         <div className="kollab-manage-campaigns-stats" style={{ display: "flex", gap: 24 }}>
-          {STATS.map((stat) => (
+          {stats.map((stat) => (
             <StatCard key={stat.label} stat={stat} />
           ))}
         </div>
@@ -182,41 +262,52 @@ export default function ManageCampaigns() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
-                  <tr key={c.id} style={{ borderBottom: `1px solid ${appColors.border}` }}>
-                    <td style={{ padding: "20px 24px", fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</td>
-                    <td style={{ padding: "20px 24px" }}>
-                      <span style={{ background: c.nicheBg, color: c.nicheColor, fontWeight: 700, fontSize: 10, borderRadius: 9999, padding: "2.5px 12px", textTransform: "uppercase" }}>{c.niche}</span>
-                    </td>
-                    <td style={{ padding: "20px 24px", color: appColors.navy, fontSize: 16 }}>{c.budget}</td>
-                    <td style={{ padding: "20px 24px", color: appColors.navy, fontSize: 14 }}>{c.apps > 0 ? `+${c.apps}` : "—"}</td>
-                    <td style={{ padding: "20px 24px" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: c.statusColor, fontWeight: 700, fontSize: 14 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 9999, background: c.dotColor }} />
-                        {c.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: "20px 24px", position: "relative" }}>
-                      <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8 }}>
-                        <DotsIcon />
-                      </button>
-                      {openMenuId === c.id && (
-                        <>
-                          <div onClick={() => setOpenMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-                          <div style={{ position: "absolute", right: 24, top: "100%", background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, minWidth: 140, overflow: "hidden" }}>
-                            <button type="button" onClick={() => handleDuplicate(c)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
-                              Duplicate
-                            </button>
-                            <button type="button" onClick={() => handleDelete(c.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: "#ba1a1a", cursor: "pointer" }}>
-                              Delete
-                            </button>
-                          </div>
-                        </>
-                      )}
+                {!loading && filtered.map((c) => {
+                  const meta = STATUS_META[c.status] ?? STATUS_META.draft;
+                  const nicheStyle = NICHE_STYLES[c.niche] ?? { bg: appColors.primaryLight, color: appColors.primary };
+                  return (
+                    <tr key={c.id} style={{ borderBottom: `1px solid ${appColors.border}` }}>
+                      <td style={{ padding: "20px 24px", fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</td>
+                      <td style={{ padding: "20px 24px" }}>
+                        <span style={{ background: nicheStyle.bg, color: nicheStyle.color, fontWeight: 700, fontSize: 10, borderRadius: 9999, padding: "2.5px 12px", textTransform: "uppercase" }}>{c.niche}</span>
+                      </td>
+                      <td style={{ padding: "20px 24px", color: appColors.navy, fontSize: 16 }}>{formatBudget(c)}</td>
+                      <td style={{ padding: "20px 24px", color: appColors.navy, fontSize: 14 }}>{c.appsCount > 0 ? `+${c.appsCount}` : "—"}</td>
+                      <td style={{ padding: "20px 24px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: meta.statusColor, fontWeight: 700, fontSize: 14 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 9999, background: meta.dotColor }} />
+                          {meta.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: "20px 24px", position: "relative" }}>
+                        <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8 }}>
+                          <DotsIcon />
+                        </button>
+                        {openMenuId === c.id && (
+                          <>
+                            <div onClick={() => setOpenMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+                            <div style={{ position: "absolute", right: 24, top: "100%", background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, minWidth: 140, overflow: "hidden" }}>
+                              <button type="button" onClick={() => handleDuplicate(c)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
+                                Duplicate
+                              </button>
+                              <button type="button" onClick={() => handleDelete(c.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: "#ba1a1a", cursor: "pointer" }}>
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {loading && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "40px 24px", textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+                      Loading campaigns…
                     </td>
                   </tr>
-                ))}
-                {filtered.length === 0 && (
+                )}
+                {!loading && filtered.length === 0 && (
                   <tr>
                     <td colSpan={6} style={{ padding: "40px 24px", textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
                       No campaigns match this filter.

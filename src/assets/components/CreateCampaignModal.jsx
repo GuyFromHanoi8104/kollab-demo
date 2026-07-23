@@ -1,14 +1,6 @@
 import { useState } from "react";
 import { appColors } from "./appColors";
-
-const NICHE_STYLES = {
-  FITNESS: { bg: "#dce1ff", color: "#003cad" },
-  FOOD: { bg: "#eaddff", color: "#5a00c6" },
-  BEAUTY: { bg: "#ffe4f0", color: "#be185d" },
-  LIFESTYLE: { bg: "#e5eeff", color: "#1550d3" },
-  TECH: { bg: "#dbeafe", color: "#1e40af" },
-  TRAVEL: { bg: "#fef3c7", color: "#92400e" },
-};
+import { NICHE_STYLES } from "./nicheStyles";
 
 const PLATFORMS = ["TikTok", "Instagram", "YouTube"];
 
@@ -43,12 +35,16 @@ export default function CreateCampaignModal({ onClose, onCreate }) {
   const [deadline, setDeadline] = useState("");
   const [brief, setBrief] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const togglePlatform = (p) => {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   };
 
-  const handleCreate = () => {
+  // Hands the raw form values to the parent, which does the real Supabase
+  // insert (it owns brand_id and the default "draft" status) and reports
+  // back { error }. Only closes once that insert actually succeeds.
+  const handleCreate = async () => {
     if (!name.trim()) {
       setError("Give your campaign a name to continue.");
       return;
@@ -58,19 +54,22 @@ export default function CreateCampaignModal({ onClose, onCreate }) {
       return;
     }
 
-    const style = NICHE_STYLES[niche];
-    onCreate({
-      id: Date.now(),
+    setError("");
+    setSubmitting(true);
+    const { error: createError } = await onCreate({
       name: name.trim(),
       niche,
-      nicheBg: style.bg,
-      nicheColor: style.color,
-      budget: `$${Number(budgetMin).toLocaleString()} – $${Number(budgetMax).toLocaleString()}`,
-      apps: 0,
-      status: "Draft",
-      statusColor: appColors.grayLight,
-      dotColor: appColors.border,
+      budgetMin: Number(budgetMin),
+      budgetMax: Number(budgetMax),
+      platforms,
+      deadline: deadline || null,
+      brief: brief.trim() || null,
     });
+    setSubmitting(false);
+    if (createError) {
+      setError(createError.message || "Couldn't create the campaign. Try again.");
+      return;
+    }
     onClose();
   };
 
@@ -174,11 +173,16 @@ export default function CreateCampaignModal({ onClose, onCreate }) {
         {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}
 
         <div className="kollab-create-campaign-actions" style={{ display: "flex", gap: 12, justifyContent: "flex-end", borderTop: `1px solid ${appColors.border}`, paddingTop: 20 }}>
-          <button type="button" onClick={onClose} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 24px", fontWeight: 600, color: appColors.gray, fontSize: 14, cursor: "pointer" }}>
+          <button type="button" onClick={onClose} disabled={submitting} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 24px", fontWeight: 600, color: appColors.gray, fontSize: 14, cursor: submitting ? "not-allowed" : "pointer" }}>
             Cancel
           </button>
-          <button type="button" onClick={handleCreate} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
-            Create Campaign
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={submitting}
+            style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}
+          >
+            {submitting ? "Creating…" : "Create Campaign"}
           </button>
         </div>
       </div>
