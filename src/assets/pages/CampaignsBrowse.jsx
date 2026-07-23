@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import MarketingNavBar from "../components/MarketingNavBar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
+import { supabase } from "../../supabaseClient";
+import { NICHE_STYLES } from "../components/nicheStyles";
 
 const colors = {
   navy: "#0b1c30",
@@ -12,63 +14,6 @@ const colors = {
   border: "rgba(195,197,215,0.4)",
 };
 
-const FEATURED = {
-  brand: "Shopee Vietnam",
-  title: "Shopee Vietnam – 9.9 Mega Sale Creator Extravaganza",
-  description: "Join Vietnam's biggest shopping event of the season. We're looking for lifestyle, fashion, and tech creators to showcase their top picks and exclusive vouchers to their community.",
-  budget: "Up to $5,000",
-  deadline: "July 31, 2026",
-  applications: "15.6K Applications",
-};
-
-const OPPORTUNITIES = [
-  {
-    id: "azure",
-    brand: "Azure Resorts",
-    location: "PHU QUOC, VN",
-    title: "Luxury Escape Content Creation",
-    description: "Showcase the ultimate luxury experience at our new oceanfront villas. Seeking cinematic…",
-    tags: ["20K+ Followers", "Vietnamese/English"],
-    budget: "$1,200 – $2,500",
-    deadline: "Aug 15",
-    urgent: true,
-    category: "Travel",
-    gradient: "linear-gradient(135deg, #22d3ee, #2563eb)",
-    logoBg: "#fff7ed",
-    logoInitial: "A",
-  },
-  {
-    id: "glow",
-    brand: "GLOW Skin",
-    location: "HCMC, VN",
-    title: "Glow Morning Routine Reel",
-    description: "We're looking for skincare enthusiasts to create aesthetic Reels showcasing their daily routine…",
-    tags: ["5K+ Followers", "Beauty Niche"],
-    budget: "$300 – $800",
-    deadline: "Aug 05",
-    urgent: false,
-    category: "Beauty",
-    gradient: "linear-gradient(135deg, #fbcfe8, #f472b6)",
-    logoBg: "#e5eeff",
-    logoInitial: "G",
-  },
-  {
-    id: "vertex",
-    brand: "Vertex Tech",
-    location: "HANOI, VN",
-    title: "New Gen Gaming Headset Review",
-    description: "Tech reviewers wanted for our upcoming flagship headset launch. In-depth review on…",
-    tags: ["50K+ Followers", "Tech & Gaming"],
-    budget: "$2,000 – $4,500",
-    deadline: "Aug 20",
-    urgent: false,
-    category: "Tech",
-    gradient: "linear-gradient(135deg, #334155, #0f172a)",
-    logoBg: "#e5eeff",
-    logoInitial: "V",
-  },
-];
-
 const FILTER_CHIPS = ["Category", "Platform", "Budget", "Location", "Campaign Type"];
 
 const STATS = [
@@ -76,6 +21,55 @@ const STATS = [
   { value: "150+", label: "ACTIVE CAMPAIGNS" },
   { value: "80+", label: "PARTNER BRANDS" },
 ];
+
+function formatBudget(campaign) {
+  const { budget_min: min, budget_max: max } = campaign;
+  if (min != null && max != null) return `$${min.toLocaleString()} – $${max.toLocaleString()}`;
+  if (max != null) return `Up to $${max.toLocaleString()}`;
+  if (min != null) return `From $${min.toLocaleString()}`;
+  return "Budget TBD";
+}
+
+function formatDeadline(dateStr, { long = false } = {}) {
+  if (!dateStr) return "No deadline";
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString("en-US", long ? { month: "long", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" });
+}
+
+function isUrgent(dateStr) {
+  if (!dateStr) return false;
+  const deadline = new Date(`${dateStr}T00:00:00`);
+  const daysLeft = (deadline - new Date()) / (1000 * 60 * 60 * 24);
+  return daysLeft <= 7;
+}
+
+// Real campaigns don't carry brand name/location/tags directly -- those
+// come from the joined brand profile (fetched separately, see the effect
+// below) or from real columns that just need reshaping (platforms -> tags,
+// niche -> category/color). Keeping this as one mapping function means
+// OpportunityCard and the Featured section below need zero changes to
+// their own JSX/props.
+function toOpportunityView(campaign, brandsById) {
+  const brandProfile = brandsById[campaign.brand_id];
+  const brandName = brandProfile?.company_name || brandProfile?.name || "Brand";
+  const style = NICHE_STYLES[campaign.niche] ?? { bg: "#e5eeff", color: "#1550d3" };
+  return {
+    id: campaign.id,
+    brand: brandName,
+    location: brandProfile?.location ? brandProfile.location.toUpperCase() : "VIETNAM",
+    title: campaign.name,
+    description: campaign.brief || "No campaign brief provided yet.",
+    tags: campaign.platforms ?? [],
+    budget: formatBudget(campaign),
+    deadline: formatDeadline(campaign.deadline),
+    urgent: isUrgent(campaign.deadline),
+    category: campaign.niche,
+    gradient: `linear-gradient(135deg, ${style.bg}, ${style.color})`,
+    logoBg: style.bg,
+    logoColor: style.color,
+    logoInitial: brandName.charAt(0).toUpperCase(),
+  };
+}
 
 function SearchIcon({ color }) {
   return (
@@ -115,11 +109,11 @@ function ArrowRight({ color }) {
   );
 }
 
-function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, isLoggedIn, role, onRequireLogin }) {
+function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, busy, isLoggedIn, role, onRequireLogin }) {
   const isBrand = isLoggedIn && role === "brand";
 
   const handleApplyClick = () => {
-    if (applied || isBrand) return;
+    if (applied || isBrand || busy) return;
     if (!isLoggedIn) {
       onRequireLogin();
       return;
@@ -176,14 +170,15 @@ function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, isLoggedI
           <button
             type="button"
             onClick={handleApplyClick}
-            disabled={applied || isBrand}
+            disabled={applied || isBrand || busy}
             style={{
               background: applied ? "#dcfce7" : isBrand ? colors.border : colors.blue, border: "none", borderRadius: 16, padding: "16px 0", flex: 1,
-              fontWeight: 700, color: applied ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: applied || isBrand ? "default" : "pointer",
+              fontWeight: 700, color: applied ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: applied || isBrand || busy ? "default" : "pointer",
+              opacity: busy ? 0.7 : 1,
               transition: "background-color 200ms ease-out, color 200ms ease-out",
             }}
           >
-            {applied ? "Applied ✓" : isBrand ? "Creators Only" : "Apply"}
+            {applied ? "Applied ✓" : isBrand ? "Creators Only" : busy ? "Applying…" : "Apply"}
           </button>
         </div>
       </div>
@@ -194,31 +189,92 @@ function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, isLoggedI
 export default function CampaignsBrowse() {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(new Set());
-  const [applied, setApplied] = useState(new Set());
-  const [featuredApplied, setFeaturedApplied] = useState(false);
   const [searchText, setSearchText] = useState("");
-
-  const handleApply = (id) => {
-    setApplied((prev) => new Set(prev).add(id));
-  };
-  const handleRequireLogin = () => navigate("/login");
 
   // This was missing entirely -- MarketingNavBar defaults isLoggedIn to
   // false when not passed a prop, so this page always showed the logged-out
   // header regardless of actual session state. Real bug, not a stale file.
-  const { isLoggedIn, role } = useAuth();
+  const { user, isLoggedIn, role } = useAuth();
+
+  const [campaigns, setCampaigns] = useState([]);
+  const [brands, setBrands] = useState({});
+  const [appliedIds, setAppliedIds] = useState(new Set());
+  const [featuredAppsCount, setFeaturedAppsCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [applyingId, setApplyingId] = useState(null);
+  const [applyError, setApplyError] = useState("");
+
+  // This table's select RLS is public, so this loads for logged-out guests
+  // too. Brand names/locations come from a separate profiles query (client-
+  // side join) rather than relying on Supabase relationship-embedding being
+  // configured. Re-runs on login/role change since the "already applied"
+  // check only makes sense -- and is only fetched -- for logged-in creators.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const { data: campaignRows } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      const rows = campaignRows ?? [];
+
+      const brandIds = [...new Set(rows.map((c) => c.brand_id))];
+      const brandsById = {};
+      if (brandIds.length > 0) {
+        const { data: profileRows } = await supabase.from("profiles").select("id, name, company_name, location").in("id", brandIds);
+        (profileRows ?? []).forEach((p) => {
+          brandsById[p.id] = p;
+        });
+      }
+
+      let appliedSet = new Set();
+      if (user && role === "creator" && rows.length > 0) {
+        const { data: appRows } = await supabase
+          .from("applications")
+          .select("campaign_id")
+          .eq("creator_id", user.id)
+          .in("campaign_id", rows.map((c) => c.id));
+        appliedSet = new Set((appRows ?? []).map((a) => a.campaign_id));
+      }
+
+      let featuredCount = 0;
+      if (rows.length > 0) {
+        const { count } = await supabase.from("applications").select("*", { count: "exact", head: true }).eq("campaign_id", rows[0].id);
+        featuredCount = count ?? 0;
+      }
+
+      if (!active) return;
+      setCampaigns(rows);
+      setBrands(brandsById);
+      setAppliedIds(appliedSet);
+      setFeaturedAppsCount(featuredCount);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user, role]);
+
+  const handleRequireLogin = () => navigate("/login");
 
   // Applying is a creator-only action -- brands manage campaigns, they
   // don't apply to them (established rule). Guests get sent to log in
   // rather than being able to fake-apply anonymously.
   const isBrand = isLoggedIn && role === "brand";
-  const handleFeaturedApplyClick = () => {
-    if (featuredApplied || isBrand) return;
-    if (!isLoggedIn) {
-      handleRequireLogin();
+
+  const handleApply = async (campaignId) => {
+    if (!user) return;
+    setApplyingId(campaignId);
+    setApplyError("");
+    const { error } = await supabase.from("applications").insert({ campaign_id: campaignId, creator_id: user.id, status: "pending" });
+    setApplyingId(null);
+    if (error) {
+      setApplyError("Couldn't submit your application. Please try again.");
       return;
     }
-    setFeaturedApplied(true);
+    setAppliedIds((prev) => new Set(prev).add(campaignId));
   };
 
   const toggleSave = (id) => {
@@ -228,6 +284,10 @@ export default function CampaignsBrowse() {
       return next;
     });
   };
+
+  const featuredCampaign = campaigns[0] ?? null;
+  const featuredView = featuredCampaign ? toOpportunityView(featuredCampaign, brands) : null;
+  const restViews = campaigns.slice(1).map((c) => toOpportunityView(c, brands));
 
   return (
     <div
@@ -329,52 +389,62 @@ export default function CampaignsBrowse() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1280, margin: "48px auto 0 auto", padding: "0 24px" }}>
-        <div className="kollab-campaigns-featured-split" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", display: "flex" }}>
-          <div className="kollab-campaigns-featured-content" style={{ flex: 1, padding: 56, display: "flex", flexDirection: "column", gap: 24 }}>
-            <span style={{ display: "inline-flex", gap: 8, alignItems: "center", background: "#dbeafe", borderRadius: 8, padding: "6px 14px", fontWeight: 700, color: colors.blue, fontSize: 12, letterSpacing: 1.2, width: "fit-content" }}>
-              FEATURED OPPORTUNITY
-            </span>
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", borderRadius: 16, width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#ea580c", fontSize: 20 }}>S</div>
-              <span style={{ fontWeight: 700, color: colors.navy, fontSize: 17 }}>{FEATURED.brand}</span>
-            </div>
-            <h2 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, lineHeight: "36px", margin: 0 }}>{FEATURED.title}</h2>
-            <p style={{ color: colors.gray, fontSize: 16, lineHeight: "26px", margin: 0 }}>{FEATURED.description}</p>
-            <div className="kollab-campaigns-featured-meta" style={{ display: "flex", gap: 48 }}>
-              <div>
-                <div style={{ color: colors.grayLight, fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Estimated Budget</div>
-                <div style={{ color: colors.blue, fontWeight: 800, fontSize: 24 }}>{FEATURED.budget}</div>
+      {featuredView && (
+        <div style={{ maxWidth: 1280, margin: "48px auto 0 auto", padding: "0 24px" }}>
+          <div className="kollab-campaigns-featured-split" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", display: "flex" }}>
+            <div className="kollab-campaigns-featured-content" style={{ flex: 1, padding: 56, display: "flex", flexDirection: "column", gap: 24 }}>
+              <span style={{ display: "inline-flex", gap: 8, alignItems: "center", background: "#dbeafe", borderRadius: 8, padding: "6px 14px", fontWeight: 700, color: colors.blue, fontSize: 12, letterSpacing: 1.2, width: "fit-content" }}>
+                FEATURED OPPORTUNITY
+              </span>
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <div style={{ background: featuredView.logoBg, border: "1px solid rgba(195,197,215,0.4)", borderRadius: 16, width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: featuredView.logoColor, fontSize: 20 }}>{featuredView.logoInitial}</div>
+                <span style={{ fontWeight: 700, color: colors.navy, fontSize: 17 }}>{featuredView.brand}</span>
               </div>
-              <div>
-                <div style={{ color: colors.grayLight, fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Application Deadline</div>
-                <div style={{ color: colors.navy, fontWeight: 800, fontSize: 24 }}>{FEATURED.deadline}</div>
+              <h2 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, lineHeight: "36px", margin: 0 }}>{featuredView.title}</h2>
+              <p style={{ color: colors.gray, fontSize: 16, lineHeight: "26px", margin: 0 }}>{featuredView.description}</p>
+              <div className="kollab-campaigns-featured-meta" style={{ display: "flex", gap: 48 }}>
+                <div>
+                  <div style={{ color: colors.grayLight, fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Estimated Budget</div>
+                  <div style={{ color: colors.blue, fontWeight: 800, fontSize: 24 }}>{featuredView.budget}</div>
+                </div>
+                <div>
+                  <div style={{ color: colors.grayLight, fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase" }}>Application Deadline</div>
+                  <div style={{ color: colors.navy, fontWeight: 800, fontSize: 24 }}>{formatDeadline(featuredCampaign.deadline, { long: true })}</div>
+                </div>
+              </div>
+              <div className="kollab-campaigns-featured-actions" style={{ display: "flex", gap: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (appliedIds.has(featuredView.id) || isBrand || applyingId === featuredView.id) return;
+                    if (!isLoggedIn) {
+                      handleRequireLogin();
+                      return;
+                    }
+                    handleApply(featuredView.id);
+                  }}
+                  disabled={appliedIds.has(featuredView.id) || isBrand || applyingId === featuredView.id}
+                  style={{
+                    background: appliedIds.has(featuredView.id) ? "#dcfce7" : isBrand ? colors.border : colors.blue, border: "none", borderRadius: 16, padding: "17px 40px",
+                    fontWeight: 700, color: appliedIds.has(featuredView.id) ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: appliedIds.has(featuredView.id) || isBrand ? "default" : "pointer",
+                    opacity: applyingId === featuredView.id ? 0.7 : 1,
+                    transition: "background-color 200ms ease-out, color 200ms ease-out",
+                  }}
+                >
+                  {appliedIds.has(featuredView.id) ? "Applied ✓" : isBrand ? "Creators Only" : applyingId === featuredView.id ? "Applying…" : "Apply Now"}
+                </button>
+                <button type="button" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 16, padding: "17px 41px", fontWeight: 700, color: colors.navy, fontSize: 16, cursor: "pointer" }}>View Details</button>
               </div>
             </div>
-            <div className="kollab-campaigns-featured-actions" style={{ display: "flex", gap: 16 }}>
-              <button
-                type="button"
-                onClick={handleFeaturedApplyClick}
-                disabled={featuredApplied || isBrand}
-                style={{
-                  background: featuredApplied ? "#dcfce7" : isBrand ? colors.border : colors.blue, border: "none", borderRadius: 16, padding: "17px 40px",
-                  fontWeight: 700, color: featuredApplied ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: featuredApplied || isBrand ? "default" : "pointer",
-                  transition: "background-color 200ms ease-out, color 200ms ease-out",
-                }}
-              >
-                {featuredApplied ? "Applied ✓" : isBrand ? "Creators Only" : "Apply Now"}
-              </button>
-              <button type="button" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 16, padding: "17px 41px", fontWeight: 700, color: colors.navy, fontSize: 16, cursor: "pointer" }}>View Details</button>
-            </div>
-          </div>
-          <div style={{ flex: 1, position: "relative", background: "linear-gradient(135deg, #f97316, #ec4899)", minHeight: 320 }}>
-            <div style={{ position: "absolute", right: 32, bottom: 32, backdropFilter: "blur(6px)", background: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 16, padding: "11px 21px", display: "flex", gap: 12, alignItems: "center", boxShadow: "0px 20px 25px -5px rgba(0,0,0,0.1)" }}>
-              <div style={{ background: "#712ae2", width: 10, height: 10, borderRadius: 9999 }} />
-              <span style={{ fontWeight: 700, color: colors.navy, fontSize: 14 }}>{FEATURED.applications}</span>
+            <div style={{ flex: 1, position: "relative", background: featuredView.gradient, minHeight: 320 }}>
+              <div style={{ position: "absolute", right: 32, bottom: 32, backdropFilter: "blur(6px)", background: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 16, padding: "11px 21px", display: "flex", gap: 12, alignItems: "center", boxShadow: "0px 20px 25px -5px rgba(0,0,0,0.1)" }}>
+                <div style={{ background: "#712ae2", width: 10, height: 10, borderRadius: 9999 }} />
+                <span style={{ fontWeight: 700, color: colors.navy, fontSize: 14 }}>{featuredAppsCount} Application{featuredAppsCount === 1 ? "" : "s"}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="kollab-campaigns-new-opps-header" style={{ maxWidth: 1280, margin: "56px auto 0 auto", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
@@ -386,25 +456,49 @@ export default function CampaignsBrowse() {
         </button>
       </div>
 
+      {applyError && (
+        <div style={{ maxWidth: 1280, margin: "24px auto 0 auto", padding: "0 24px" }}>
+          <div style={{ color: "#ba1a1a", fontSize: 14, fontWeight: 600, textAlign: "center" }}>{applyError}</div>
+        </div>
+      )}
+
       <div style={{ maxWidth: 1280, margin: "40px auto 0 auto", padding: "0 24px 56px 24px", display: "flex", flexWrap: "wrap", gap: 32, justifyContent: "center" }}>
         {(() => {
+          if (loading) {
+            return <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>Loading campaigns…</div>;
+          }
+          if (campaigns.length === 0) {
+            return <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>No active campaigns right now — check back soon.</div>;
+          }
+
           const query = searchText.trim().toLowerCase();
           const filteredOpportunities = query
-            ? OPPORTUNITIES.filter(
+            ? restViews.filter(
                 (opp) =>
                   opp.brand.toLowerCase().includes(query) ||
                   opp.title.toLowerCase().includes(query) ||
                   opp.category.toLowerCase().includes(query)
               )
-            : OPPORTUNITIES;
+            : restViews;
 
           return filteredOpportunities.length > 0 ? (
             filteredOpportunities.map((opp) => (
-              <OpportunityCard key={opp.id} opp={opp} saved={saved.has(opp.id)} onToggleSave={toggleSave} applied={applied.has(opp.id)} onApply={handleApply} isLoggedIn={isLoggedIn} role={role} onRequireLogin={handleRequireLogin} />
+              <OpportunityCard
+                key={opp.id}
+                opp={opp}
+                saved={saved.has(opp.id)}
+                onToggleSave={toggleSave}
+                applied={appliedIds.has(opp.id)}
+                onApply={handleApply}
+                busy={applyingId === opp.id}
+                isLoggedIn={isLoggedIn}
+                role={role}
+                onRequireLogin={handleRequireLogin}
+              />
             ))
           ) : (
             <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>
-              No campaigns match "{searchText}".
+              {query ? `No campaigns match "${searchText}".` : "No additional opportunities right now — check back soon."}
             </div>
           );
         })()}
