@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
@@ -6,6 +6,16 @@ import { appColors } from "../components/appColors";
 import Footer from "../components/Footer";
 import ReviewApplicationModal from "../components/ReviewApplicationModal";
 import { useAuth } from "../context/useAuth";
+import { supabase } from "../../supabaseClient";
+
+// applications.created_at -> a relative "NEW" / "2D AGO" style badge, since
+// there's no real "seen/unseen" column to key off of.
+function applicationBadge(createdAt) {
+  const hours = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
+  if (hours < 24) return { badge: "NEW", badgeBg: "#dce1ff", badgeColor: appColors.primary };
+  const days = Math.floor(hours / 24);
+  return { badge: `${days}D AGO`, badgeBg: appColors.primaryLight, badgeColor: appColors.grayLight };
+}
 
 function InstagramLogo() {
   return (
@@ -54,11 +64,6 @@ const RECOMMENDED_CREATORS = [
   { id: "minh-tu", name: "Minh Tu", role: "Professional Athlete", followers: "120K", engagement: "3.2%", initial: "M" },
   { id: "an-nguyen", name: "An Nguyen", role: "Lifestyle & Travel", followers: "89K", engagement: "6.1%", initial: "A" },
   { id: "bich-phuong", name: "Bich Phuong", role: "Beauty Specialist", followers: "215K", engagement: "4.8%", initial: "B" },
-];
-
-const INITIAL_APPLICATIONS = [
-  { name: "Hoang Yen", category: "Food & Beverage", followers: "126K", following: "32K", er: "7.8%", badge: "NEW", badgeBg: "#dce1ff", badgeColor: appColors.primary, initial: "H" },
-  { name: "Duc Tran", category: "Tech & Fitness", followers: "54K", following: "12K", er: "4.2%", badge: "2D AGO", badgeBg: appColors.primaryLight, badgeColor: appColors.grayLight, initial: "D" },
 ];
 
 const ACTIVITY = [
@@ -133,7 +138,7 @@ function ApplicationCard({ app, onReview, saved, onToggleSave }) {
           </button>
           <button
             type="button"
-            onClick={() => onToggleSave(app.name)}
+            onClick={() => onToggleSave(app.id)}
             aria-label="Save"
             style={{ background: saved ? "#fee2e2" : appColors.primaryLighter, border: "none", borderRadius: 12, padding: "0 16px", cursor: "pointer", color: saved ? "#ba1a1a" : appColors.navy, transition: "background-color 200ms ease-out, color 200ms ease-out" }}
           >
@@ -146,23 +151,92 @@ function ApplicationCard({ app, onReview, saved, onToggleSave }) {
 }
 
 export default function Dashboard() {
-  const { profile } = useAuth();
-  const [applications, setApplications] = useState(INITIAL_APPLICATIONS);
+  const { user, profile } = useAuth();
+  const [applications, setApplications] = useState([]);
+  const [loadingApps, setLoadingApps] = useState(true);
   const [reviewingApp, setReviewingApp] = useState(null);
   const [savedApplications, setSavedApplications] = useState(new Set());
 
-  const toggleSaveApplication = (name) => {
+  // Applications don't carry the applying creator's name/niche directly --
+  // joined through profiles, client-side (same pattern used for campaigns
+  // <-> profiles and applications <-> profiles in the last three commits).
+  // Scoped to campaigns this brand owns, matching the "owner-restricted"
+  // spirit of the RLS policies already in place.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      setLoadingApps(true);
+      const { data: campaignRows } = await supabase.from("campaigns").select("id").eq("brand_id", user.id);
+      const campaignIds = (campaignRows ?? []).map((c) => c.id);
+
+      if (campaignIds.length === 0) {
+        if (active) {
+          setApplications([]);
+          setLoadingApps(false);
+        }
+        return;
+      }
+
+      const { data: appRows } = await supabase
+        .from("applications")
+        .select("*")
+        .in("campaign_id", campaignIds)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      const apps = appRows ?? [];
+
+      const creatorIds = [...new Set(apps.map((a) => a.creator_id))];
+      const creatorsById = {};
+      if (creatorIds.length > 0) {
+        const { data: profileRows } = await supabase.from("profiles").select("id, name, niche").in("id", creatorIds);
+        (profileRows ?? []).forEach((p) => {
+          creatorsById[p.id] = p;
+        });
+      }
+
+      if (!active) return;
+      setApplications(
+        apps.map((a) => {
+          const creator = creatorsById[a.creator_id];
+          const name = creator?.name || "Creator";
+          return {
+            id: a.id,
+            name,
+            initial: name.charAt(0).toUpperCase(),
+            category: creator?.niche?.length ? creator.niche.join(" & ") : "General",
+            followers: "—",
+            following: "—",
+            er: "—",
+            note: a.note,
+            ...applicationBadge(a.created_at),
+          };
+        })
+      );
+      setLoadingApps(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const toggleSaveApplication = (id) => {
     setSavedApplications((prev) => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
 
-  const handleDecision = (name) => {
-    // Reviewed applications drop off the "recent" list, same pattern as
-    // Invitations on the creator side (MyProfile.jsx).
-    setApplications((prev) => prev.filter((a) => a.name !== name));
+  // Returns { error } (Supabase's own convention) so the modal can surface
+  // a real failure instead of always showing the success state.
+  const handleDecision = async (id, decision) => {
+    const status = decision === "accepted" ? "accepted" : "declined";
+    const { error } = await supabase.from("applications").update({ status }).eq("id", id);
+    if (!error) {
+      setApplications((prev) => prev.filter((a) => a.id !== id));
+    }
+    return { error };
   };
 
   return (
@@ -231,13 +305,13 @@ export default function Dashboard() {
             Welcome back, {profile?.name || "there"} <span style={{ marginLeft: 4 }}>👋</span>
           </h1>
           <p style={{ color: "white", opacity: 0.9, fontSize: 18, lineHeight: "28px", maxWidth: 576, margin: "8px 0 0 0" }}>
-            Your campaigns are performing 12% better this week. You have 13 new creator applications waiting for review.
+            Your campaigns are performing 12% better this week. You have {applications.length} new creator application{applications.length === 1 ? "" : "s"} waiting for review.
           </p>
         </div>
 
         <div className="kollab-dashboard-stats-row" style={{ display: "flex", gap: 24 }}>
           {STATS.map((stat) => (
-            <StatCard key={stat.label} stat={stat} />
+            <StatCard key={stat.label} stat={stat.label === "New KOL Applications" ? { ...stat, value: String(applications.length) } : stat} />
           ))}
         </div>
 
@@ -324,12 +398,16 @@ export default function Dashboard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ fontWeight: 600, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Recent KOL Applications</h2>
-            <a href="#" style={{ color: appColors.primary, fontWeight: 700, fontSize: 14, textDecoration: "none" }}>See all 13</a>
+            <a href="#" style={{ color: appColors.primary, fontWeight: 700, fontSize: 14, textDecoration: "none" }}>See all {applications.length}</a>
           </div>
-          {applications.length > 0 ? (
-            <div className="kollab-dashboard-apps-row" style={{ display: "flex", gap: 24 }}>
+          {loadingApps ? (
+            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 40, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+              Loading applications…
+            </div>
+          ) : applications.length > 0 ? (
+            <div className="kollab-dashboard-apps-row" style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>
               {applications.map((app) => (
-                <ApplicationCard key={app.name} app={app} onReview={setReviewingApp} saved={savedApplications.has(app.name)} onToggleSave={toggleSaveApplication} />
+                <ApplicationCard key={app.id} app={app} onReview={setReviewingApp} saved={savedApplications.has(app.id)} onToggleSave={toggleSaveApplication} />
               ))}
             </div>
           ) : (

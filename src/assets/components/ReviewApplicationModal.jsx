@@ -16,22 +16,22 @@ function CheckIcon() {
   );
 }
 
-// Mock applicant messages, keyed by name, since the underlying APPLICATIONS
-// data doesn't carry one. Falls back to a generic line for anyone else.
-const NOTES = {
-  "Hoang Yen": "I'd love to be part of this campaign! My audience really engages with food and lifestyle content, and I think this would be a great fit.",
-  "Duc Tran": "Been following your brand for a while and would love to collaborate. Happy to share more of my past tech review work if useful.",
-};
-
 export default function ReviewApplicationModal({ applicant, onClose, onDecision }) {
-  const [decision, setDecision] = useState(null); // null | "accepted" | "rejected"
+  const [decision, setDecision] = useState(null); // null | "accepted" | "declined"
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleDecision = (choice) => {
+  const handleDecision = async (choice) => {
+    setSubmitting(true);
+    setError("");
+    const { error: decisionError } = await onDecision(applicant.id, choice);
+    setSubmitting(false);
+    if (decisionError) {
+      setError("Couldn't update this application. Please try again.");
+      return;
+    }
     setDecision(choice);
-    setTimeout(() => {
-      onDecision(applicant.name, choice);
-      onClose();
-    }, 1000);
+    setTimeout(onClose, 1200);
   };
 
   return (
@@ -97,16 +97,18 @@ export default function ReviewApplicationModal({ applicant, onClose, onDecision 
             <div>
               <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24, marginBottom: 8 }}>APPLICATION NOTE</div>
               <p style={{ color: appColors.gray, fontSize: 14, lineHeight: "22px", margin: 0, fontStyle: "italic" }}>
-                &ldquo;{NOTES[applicant.name] || "Excited about the opportunity to collaborate on this campaign!"}&rdquo;
+                &ldquo;{applicant.note || "Excited about the opportunity to collaborate on this campaign!"}&rdquo;
               </p>
             </div>
 
+            {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+
             <div style={{ display: "flex", gap: 12, borderTop: `1px solid ${appColors.border}`, paddingTop: 20 }}>
-              <button type="button" onClick={() => handleDecision("rejected")} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 0", fontWeight: 700, color: appColors.gray, fontSize: 14, cursor: "pointer" }}>
+              <button type="button" onClick={() => handleDecision("declined")} disabled={submitting} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 0", fontWeight: 700, color: appColors.gray, fontSize: 14, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
                 Decline
               </button>
-              <button type="button" onClick={() => handleDecision("accepted")} style={{ flex: 1, background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 0", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
-                Accept
+              <button type="button" onClick={() => handleDecision("accepted")} disabled={submitting} style={{ flex: 1, background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 0", fontWeight: 700, color: "white", fontSize: 14, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
+                {submitting ? "Saving…" : "Accept"}
               </button>
             </div>
           </>
