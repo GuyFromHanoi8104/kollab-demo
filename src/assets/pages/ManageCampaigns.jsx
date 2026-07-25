@@ -6,6 +6,7 @@ import CreateCampaignModal from "../components/CreateCampaignModal";
 import { NICHE_STYLES } from "../components/nicheStyles";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { formatVND } from "../../utils/currency";
 
 // Maps the real `campaigns.status` value (lowercase, DB default is "draft")
 // to the display label + colors the status pills/badges use.
@@ -18,9 +19,9 @@ const STATUS_META = {
 
 function formatBudget(campaign) {
   const { budget_min: min, budget_max: max } = campaign;
-  if (min != null && max != null) return `$${min.toLocaleString()} – $${max.toLocaleString()}`;
-  if (max != null) return `$${max.toLocaleString()}`;
-  if (min != null) return `$${min.toLocaleString()}`;
+  if (min != null && max != null) return `${formatVND(min)} – ${formatVND(max)}`;
+  if (max != null) return formatVND(max);
+  if (min != null) return formatVND(min);
   return "—";
 }
 
@@ -67,6 +68,7 @@ export default function ManageCampaigns() {
   const [nicheFilter, setNicheFilter] = useState("All");
   const [openMenuId, setOpenMenuId] = useState(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [actionError, setActionError] = useState("");
   const statuses = ["All", "Active", "Reviewing", "Draft", "Completed"];
   const niches = ["All", ...new Set(campaigns.map((c) => c.niche))];
 
@@ -114,7 +116,7 @@ export default function ManageCampaigns() {
   const totalBudget = campaigns.reduce((sum, c) => sum + (c.budget_max ?? c.budget_min ?? 0), 0);
   const stats = [
     { value: String(activeCount), label: "Active Campaigns", iconBg: "#dce1ff" },
-    { value: `$${totalBudget.toLocaleString()}`, label: "Total Budget Allocated", iconBg: "#eaddff" },
+    { value: formatVND(totalBudget), label: "Total Budget Allocated", iconBg: "#eaddff" },
     { value: String(totalApplications), label: "Total Applications", iconBg: "#ffdcc6" },
     { value: String(completedCount), label: "Completed Campaigns", iconBg: appColors.primaryLight },
   ];
@@ -139,13 +141,19 @@ export default function ManageCampaigns() {
 
   const handleDelete = async (id) => {
     setOpenMenuId(null);
-    await supabase.from("campaigns").delete().eq("id", id);
+    setActionError("");
+    const { error } = await supabase.from("campaigns").delete().eq("id", id);
+    if (error) {
+      setActionError("Couldn't delete that campaign. Please try again.");
+      return;
+    }
     await loadCampaigns();
   };
 
   const handleDuplicate = async (campaign) => {
     setOpenMenuId(null);
-    await supabase.from("campaigns").insert({
+    setActionError("");
+    const { error } = await supabase.from("campaigns").insert({
       brand_id: user.id,
       name: `${campaign.name} (Copy)`,
       niche: campaign.niche,
@@ -156,6 +164,10 @@ export default function ManageCampaigns() {
       brief: campaign.brief,
       status: "draft",
     });
+    if (error) {
+      setActionError("Couldn't duplicate that campaign. Please try again.");
+      return;
+    }
     await loadCampaigns();
   };
 
@@ -209,6 +221,8 @@ export default function ManageCampaigns() {
             <PlusIcon /> Create Campaign
           </button>
         </div>
+
+        {actionError && <div style={{ color: "#ba1a1a", fontSize: 14, fontWeight: 600 }}>{actionError}</div>}
 
         <div className="kollab-manage-campaigns-stats" style={{ display: "flex", gap: 24 }}>
           {stats.map((stat) => (

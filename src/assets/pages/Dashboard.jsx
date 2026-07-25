@@ -7,6 +7,7 @@ import Footer from "../components/Footer";
 import ReviewApplicationModal from "../components/ReviewApplicationModal";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { formatVND } from "../../utils/currency";
 
 // applications.created_at -> a relative "NEW" / "2D AGO" style badge, since
 // there's no real "seen/unseen" column to key off of.
@@ -54,9 +55,12 @@ const STATS = [
   { value: "56", label: "Saved Creators", badge: "Active list", badgeColor: appColors.grayLight, iconBg: appColors.primaryLight },
 ];
 
+// Budget figures are illustrative placeholders scaled to a plausible VND
+// magnitude, not verified Vietnam KOL market rates -- sanity-check before
+// treating these as authoritative.
 const CAMPAIGNS = [
-  { name: "Protein Powder Launch", niche: "FITNESS", nicheBg: "#dce1ff", nicheColor: "#003cad", budget: "$3,000", apps: 18, status: "Active", statusColor: "#16a34a", dotColor: "#22c55e" },
-  { name: "Healthy Snacks", niche: "FOOD", nicheBg: "#eaddff", nicheColor: "#5a00c6", budget: "$1,500", apps: 7, status: "Reviewing", statusColor: "#ea580c", dotColor: "#f97316" },
+  { name: "Protein Powder Launch", niche: "FITNESS", nicheBg: "#dce1ff", nicheColor: "#003cad", budget: formatVND(75000000), apps: 18, status: "Active", statusColor: "#16a34a", dotColor: "#22c55e" },
+  { name: "Healthy Snacks", niche: "FOOD", nicheBg: "#eaddff", nicheColor: "#5a00c6", budget: formatVND(37500000), apps: 7, status: "Reviewing", statusColor: "#ea580c", dotColor: "#f97316" },
 ];
 
 const RECOMMENDED_CREATORS = [

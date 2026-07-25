@@ -6,11 +6,15 @@ import { appColors } from "../components/appColors";
 import UpgradeModal from "../components/UpgradeModal";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { formatVND } from "../../utils/currency";
 
+// Pro Plan price is an illustrative placeholder, not a verified rate --
+// matches the price shown in UpgradeModal.jsx.
+const PRO_PLAN_PRICE = formatVND(1200000);
 const MOCK_INVOICES = [
-  { date: "Jul 1, 2026", amount: "$49.00", status: "Paid" },
-  { date: "Jun 1, 2026", amount: "$49.00", status: "Paid" },
-  { date: "May 1, 2026", amount: "$49.00", status: "Paid" },
+  { date: "Jul 1, 2026", amount: PRO_PLAN_PRICE, status: "Paid" },
+  { date: "Jun 1, 2026", amount: PRO_PLAN_PRICE, status: "Paid" },
+  { date: "May 1, 2026", amount: PRO_PLAN_PRICE, status: "Paid" },
 ];
 
 function CloseIcon() {

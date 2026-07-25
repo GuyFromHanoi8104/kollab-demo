@@ -5,6 +5,7 @@ import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { NICHE_STYLES } from "../components/nicheStyles";
+import { formatVND } from "../../utils/currency";
 
 const colors = {
   navy: "#0b1c30",
@@ -24,9 +25,9 @@ const STATS = [
 
 function formatBudget(campaign) {
   const { budget_min: min, budget_max: max } = campaign;
-  if (min != null && max != null) return `$${min.toLocaleString()} – $${max.toLocaleString()}`;
-  if (max != null) return `Up to $${max.toLocaleString()}`;
-  if (min != null) return `From $${min.toLocaleString()}`;
+  if (min != null && max != null) return `${formatVND(min)} – ${formatVND(max)}`;
+  if (max != null) return `Up to ${formatVND(max)}`;
+  if (min != null) return `From ${formatVND(min)}`;
   return "Budget TBD";
 }
 
