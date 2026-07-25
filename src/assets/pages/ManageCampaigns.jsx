@@ -42,7 +42,7 @@ function PlusIcon() {
 }
 function DotsIcon() {
   return (
-    <svg width="16" height="4" viewBox="0 0 16 4" fill="none">
+    <svg width="16" height="4" viewBox="0 0 16 4" fill="none" style={{ pointerEvents: "none" }}>
       <circle cx="2" cy="2" r="1.6" fill={appColors.grayLight} />
       <circle cx="8" cy="2" r="1.6" fill={appColors.grayLight} />
       <circle cx="14" cy="2" r="1.6" fill={appColors.grayLight} />
@@ -294,7 +294,7 @@ export default function ManageCampaigns() {
                         </span>
                       </td>
                       <td style={{ padding: "20px 24px", position: "relative" }}>
-                        <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8 }}>
+                        <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <DotsIcon />
                         </button>
                         {openMenuId === c.id && (

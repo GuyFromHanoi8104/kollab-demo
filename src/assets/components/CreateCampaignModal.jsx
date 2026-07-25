@@ -26,6 +26,13 @@ const fieldStyle = {
 };
 const labelStyle = { fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24, display: "block", marginBottom: 6 };
 
+// Displays a raw digit string ("4000000") grouped with "." every 3 digits
+// ("4.000.000"), matching the ₫ formatting used elsewhere in the app.
+function formatThousands(digits) {
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 export default function CreateCampaignModal({ onClose, onCreate }) {
   const [name, setName] = useState("");
   const [niche, setNiche] = useState("FITNESS");
@@ -124,11 +131,25 @@ export default function CreateCampaignModal({ onClose, onCreate }) {
         <div style={{ display: "flex", gap: 16 }}>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Budget Min (₫)</label>
-            <input type="number" min="0" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="5000000" style={fieldStyle} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formatThousands(budgetMin)}
+              onChange={(e) => setBudgetMin(e.target.value.replace(/\D/g, ""))}
+              placeholder="5.000.000"
+              style={fieldStyle}
+            />
           </div>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Budget Max (₫)</label>
-            <input type="number" min="0" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="20000000" style={fieldStyle} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formatThousands(budgetMax)}
+              onChange={(e) => setBudgetMax(e.target.value.replace(/\D/g, ""))}
+              placeholder="20.000.000"
+              style={fieldStyle}
+            />
           </div>
         </div>
 
