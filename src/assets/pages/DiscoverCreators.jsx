@@ -1,69 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
 import { useAuth } from "../context/useAuth";
-
-const CREATORS = [
-  {
-    id: "minh",
-    name: "Minh Review",
-    handle: "@minh.techtips",
-    tags: ["Tech", "Gadgets"],
-    statLabel: "TIKTOK FOLLOWERS",
-    statValue: "1.2M",
-    followersNum: 1200000,
-    engagement: "4.8%",
-    engagementNum: 4.8,
-    avgViews: "450K Avg. Views",
-    location: "Ho Chi Minh City",
-    initial: "M",
-  },
-  {
-    id: "thanh",
-    name: "Thanh Beauty",
-    handle: "@thanh.glam",
-    tags: ["Beauty", "Luxury"],
-    statLabel: "INSTAGRAM FOLLOWERS",
-    statValue: "840K",
-    followersNum: 840000,
-    engagement: "3.2%",
-    engagementNum: 3.2,
-    avgViews: "120K Avg. Views",
-    location: "Hanoi, VN",
-    initial: "T",
-  },
-  {
-    id: "khoa",
-    name: "Khoa Fitness",
-    handle: "@khoa.trains",
-    tags: ["Fitness", "Wellness"],
-    statLabel: "TIKTOK FOLLOWERS",
-    statValue: "2.4M",
-    followersNum: 2400000,
-    engagement: "5.5%",
-    engagementNum: 5.5,
-    avgViews: "680K Avg. Views",
-    location: "Ho Chi Minh City",
-    initial: "K",
-  },
-  {
-    id: "bao",
-    name: "Bao Tran",
-    handle: "@bao.kitchen",
-    tags: ["Food", "Lifestyle"],
-    statLabel: "FOLLOWERS (TOTAL)",
-    statValue: "410K",
-    followersNum: 410000,
-    engagement: "7.1%",
-    engagementNum: 7.1,
-    avgViews: "95K Avg. Views",
-    location: "Da Nang, VN",
-    initial: "B",
-  },
-];
+import { supabase } from "../../supabaseClient";
 
 const RECENTLY_VIEWED = [
   { name: "Minh Review", time: "2 hours ago", initial: "M" },
@@ -135,13 +77,6 @@ function PlusIcon({ color }) {
     </svg>
   );
 }
-function SortChevron() {
-  return (
-    <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
-      <path d="M1 1l5 5 5-5" stroke={appColors.primary} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function CloseIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -163,7 +98,21 @@ function AvatarSquare({ initial, size = 48, radius = 12 }) {
   );
 }
 
+// Follower counts, engagement rate, and avg views have no database column --
+// they'd require a real TikTok/Instagram API integration (separate future
+// task). Show a clear "not yet available" placeholder rather than inventing
+// numbers for real people.
+function StatPlaceholder({ label }) {
+  return (
+    <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
+      <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontWeight: 600, color: appColors.grayLight, fontSize: 13, marginTop: 6 }}>Not yet available</div>
+    </div>
+  );
+}
+
 function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }) {
+  const niches = creator.niche || [];
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ height: 256, background: "linear-gradient(135deg, #cbd5e1, #94a3b8)", position: "relative" }}>
@@ -203,10 +152,10 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
               <span style={{ color: appColors.navy, fontSize: 16 }}>{creator.name}</span>
               <VerifiedIcon />
             </div>
-            <div style={{ color: appColors.gray, fontSize: 14, marginTop: 4 }}>{creator.handle}</div>
+            <div style={{ color: appColors.gray, fontSize: 14, marginTop: 4 }}>{creator.handle || "—"}</div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {creator.tags.map((tag) => (
+            {niches.map((tag) => (
               <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 700, fontSize: 12, borderRadius: 9999, padding: "4px 12px" }}>
                 {tag}
               </span>
@@ -214,25 +163,26 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
           </div>
         </div>
 
+        <p style={{
+          color: appColors.gray, fontSize: 13, lineHeight: "20px", margin: 0,
+          overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+        }}>
+          {creator.bio || "No bio yet."}
+        </p>
+
         <div style={{ display: "flex", gap: 16 }}>
-          <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>{creator.statLabel}</div>
-            <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, marginTop: 4 }}>{creator.statValue}</div>
-          </div>
-          <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>ENGAGEMENT RATE</div>
-            <div style={{ fontWeight: 700, color: "#924700", fontSize: 24, letterSpacing: -0.24, marginTop: 4 }}>{creator.engagement}</div>
-          </div>
+          <StatPlaceholder label="Followers" />
+          <StatPlaceholder label="Engagement Rate" />
         </div>
 
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <EyeIcon color={appColors.gray} />
-            <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>{creator.avgViews}</span>
+            <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>Stats not yet available</span>
           </div>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <LocationIcon color={appColors.gray} />
-            <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>{creator.location}</span>
+            <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>{creator.location || "Location not set"}</span>
           </div>
         </div>
 
@@ -248,15 +198,32 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
 }
 
 export default function DiscoverCreators() {
+  const [creators, setCreators] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [compared, setCompared] = useState(new Set());
   const [saved, setSaved] = useState(new Set());
   const [activeTags, setActiveTags] = useState(new Set());
-  const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "engagement" | "followers"
   const [compareModalOpen, setCompareModalOpen] = useState(false);
 
-  const ALL_TAGS = [...new Set(CREATORS.flatMap((c) => c.tags))];
-  const SORT_OPTIONS = ["relevance", "engagement", "followers"];
-  const SORT_LABELS = { relevance: "Relevance", engagement: "Highest Engagement", followers: "Most Followers" };
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "creator")
+        .order("created_at", { ascending: false });
+      if (!active) return;
+      setCreators(data ?? []);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const ALL_TAGS = [...new Set(creators.flatMap((c) => c.niche || []))];
 
   const toggleTag = (tag) => {
     setActiveTags((prev) => {
@@ -265,18 +232,10 @@ export default function DiscoverCreators() {
       return next;
     });
   };
-  const cycleSort = () => {
-    const i = SORT_OPTIONS.indexOf(sortBy);
-    setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length]);
-  };
 
-  const visibleCreators = CREATORS
-    .filter((c) => activeTags.size === 0 || c.tags.some((t) => activeTags.has(t)))
-    .sort((a, b) => {
-      if (sortBy === "engagement") return b.engagementNum - a.engagementNum;
-      if (sortBy === "followers") return b.followersNum - a.followersNum;
-      return 0; // relevance = original order
-    });
+  const visibleCreators = creators.filter(
+    (c) => activeTags.size === 0 || (c.niche || []).some((t) => activeTags.has(t))
+  );
 
   // Guest-vs-account distinction: browsing is public, but "Recently Viewed"
   // and "Saved Lists" are inherently account-tied concepts (nowhere to
@@ -299,7 +258,7 @@ export default function DiscoverCreators() {
     });
   };
 
-  const comparedCreators = CREATORS.filter((c) => compared.has(c.id));
+  const comparedCreators = creators.filter((c) => compared.has(c.id));
 
   return (
     <div
@@ -379,8 +338,8 @@ export default function DiscoverCreators() {
               />
             </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {ALL_TAGS.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                 {ALL_TAGS.map((tag) => {
                   const active = activeTags.has(tag);
                   return (
@@ -406,17 +365,14 @@ export default function DiscoverCreators() {
                   </button>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.9 }}>
-                <span style={{ color: appColors.gray, fontSize: 14, fontWeight: 500 }}>Sort by:</span>
-                <button type="button" onClick={cycleSort} style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", cursor: "pointer", padding: 0 }}>
-                  <span style={{ color: appColors.primary, fontWeight: 700, fontSize: 16 }}>{SORT_LABELS[sortBy]}</span>
-                  <SortChevron />
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
-          {visibleCreators.length > 0 ? (
+          {loading ? (
+            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 48, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+              Loading creators…
+            </div>
+          ) : visibleCreators.length > 0 ? (
             <div className="kollab-discover-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
               {visibleCreators.map((creator) => (
                 <CreatorCard
@@ -431,7 +387,7 @@ export default function DiscoverCreators() {
             </div>
           ) : (
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 48, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
-              No creators match these filters.
+              {creators.length === 0 ? "No creators have signed up yet." : "No creators match these filters."}
             </div>
           )}
         </div>
@@ -515,7 +471,7 @@ export default function DiscoverCreators() {
                 {comparedCreators.slice(0, 3).map((c, i) => (
                   <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -16 }}>
                     <div style={{ background: "#e2e8f0", border: "4px solid white", borderRadius: 9999, width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)" }}>
-                      {c.initial}
+                      {c.name?.charAt(0).toUpperCase()}
                     </div>
                   </div>
                 ))}
@@ -547,24 +503,24 @@ export default function DiscoverCreators() {
               {comparedCreators.map((c) => (
                 <div key={c.id} style={{ border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <div style={{ background: "#e2e8f0", borderRadius: 9999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, flexShrink: 0 }}>{c.initial}</div>
+                    <div style={{ background: "#e2e8f0", borderRadius: 9999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, flexShrink: 0 }}>{c.name?.charAt(0).toUpperCase()}</div>
                     <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</div>
                   </div>
                   <div>
-                    <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>{c.statLabel}</div>
-                    <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 18 }}>{c.statValue}</div>
+                    <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Followers</div>
+                    <div style={{ color: appColors.grayLight, fontWeight: 600, fontSize: 13 }}>Not yet available</div>
                   </div>
                   <div>
                     <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Engagement</div>
-                    <div style={{ color: "#924700", fontWeight: 700, fontSize: 18 }}>{c.engagement}</div>
+                    <div style={{ color: appColors.grayLight, fontWeight: 600, fontSize: 13 }}>Not yet available</div>
                   </div>
                   <div>
                     <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Avg Views</div>
-                    <div style={{ color: appColors.navy, fontSize: 13 }}>{c.avgViews}</div>
+                    <div style={{ color: appColors.grayLight, fontWeight: 600, fontSize: 13 }}>Not yet available</div>
                   </div>
                   <div>
                     <div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Location</div>
-                    <div style={{ color: appColors.navy, fontSize: 13 }}>{c.location}</div>
+                    <div style={{ color: appColors.navy, fontSize: 13 }}>{c.location || "Not set"}</div>
                   </div>
                   <Link to={`/creator/${c.id}`} style={{ background: appColors.primaryLighter, borderRadius: 10, padding: "8px 0", textAlign: "center", color: appColors.primary, fontWeight: 700, fontSize: 12, textDecoration: "none" }}>
                     View Profile
