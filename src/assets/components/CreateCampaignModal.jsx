@@ -123,12 +123,12 @@ export default function CreateCampaignModal({ onClose, onCreate }) {
 
         <div style={{ display: "flex", gap: 16 }}>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Budget Min ($)</label>
-            <input type="number" min="0" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="500" style={fieldStyle} />
+            <label style={labelStyle}>Budget Min (₫)</label>
+            <input type="number" min="0" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="5000000" style={fieldStyle} />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Budget Max ($)</label>
-            <input type="number" min="0" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="2000" style={fieldStyle} />
+            <label style={labelStyle}>Budget Max (₫)</label>
+            <input type="number" min="0" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="20000000" style={fieldStyle} />
           </div>
         </div>
 

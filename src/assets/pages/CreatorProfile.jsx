@@ -4,6 +4,7 @@ import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
+import { formatVND } from "../../utils/currency";
 
 const PROFILE = {
   name: "Linh Nguyen",
@@ -271,7 +272,7 @@ function InviteModal({ onClose }) {
             </div>
 
             <div style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 12, padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
-              <div><div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Budget</div><div style={{ color: appColors.navy, fontWeight: 600 }}>$1,500 - $2,500</div></div>
+              <div><div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Budget</div><div style={{ color: appColors.navy, fontWeight: 600 }}>{formatVND(37500000)} - {formatVND(62500000)}</div></div>
               <div><div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Duration</div><div style={{ color: appColors.navy, fontWeight: 600 }}>4 Weeks</div></div>
               <div><div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Platform</div><div style={{ color: appColors.navy, fontWeight: 600 }}>TikTok & IG</div></div>
               <div><div style={{ color: appColors.grayLight, fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>Deadline</div><div style={{ color: appColors.navy, fontWeight: 600 }}>Aug 15, 2026</div></div>

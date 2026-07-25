@@ -1,5 +1,10 @@
 import { useState } from "react";
 import { appColors } from "./appColors";
+import { formatVND } from "../../utils/currency";
+
+// Illustrative placeholder price, not a verified rate -- matches the amount
+// shown on Settings.jsx's mock invoices.
+const PRO_PLAN_PRICE = formatVND(1200000);
 
 const FEATURES = [
   "AI-powered creator & brand recommendations",
@@ -62,7 +67,7 @@ export default function UpgradeModal({ onClose }) {
             </div>
 
             <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 20, display: "flex", alignItems: "baseline", gap: 6 }}>
-              <span style={{ fontWeight: 800, color: appColors.navy, fontSize: 32 }}>$49</span>
+              <span style={{ fontWeight: 800, color: appColors.navy, fontSize: 32 }}>{PRO_PLAN_PRICE}</span>
               <span style={{ color: appColors.grayLight, fontSize: 14 }}>/ month</span>
             </div>
 

@@ -5,11 +5,15 @@ import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
 import { useAuth } from "../context/useAuth";
+import { formatVND } from "../../utils/currency";
 
 // Reusing brand names already established elsewhere in the app (Landing
 // Page's Active Brands, Campaigns Browse) instead of inventing new ones,
 // so the mock data feels like one connected product rather than disconnected
 // per-page placeholders.
+// avgBudget figures are illustrative placeholders scaled to a plausible VND
+// magnitude, not verified Vietnam KOL market rates -- sanity-check before
+// treating these as authoritative.
 const BRANDS = [
   {
     id: "shopee",
@@ -19,7 +23,7 @@ const BRANDS = [
     tags: ["E-commerce", "Retail"],
     activeCampaigns: "4",
     activeCampaignsNum: 4,
-    avgBudget: "$1,200 – $5,000",
+    avgBudget: `${formatVND(30000000)} – ${formatVND(120000000)}`,
     creatorsWorked: "340+",
     creatorsWorkedNum: 340,
     initial: "S",
@@ -33,7 +37,7 @@ const BRANDS = [
     tags: ["Automotive", "EV"],
     activeCampaigns: "2",
     activeCampaignsNum: 2,
-    avgBudget: "$3,000 – $8,000",
+    avgBudget: `${formatVND(70000000)} – ${formatVND(150000000)}`,
     creatorsWorked: "85+",
     creatorsWorkedNum: 85,
     initial: "V",
@@ -47,7 +51,7 @@ const BRANDS = [
     tags: ["F&B", "Lifestyle"],
     activeCampaigns: "6",
     activeCampaignsNum: 6,
-    avgBudget: "$500 – $1,500",
+    avgBudget: `${formatVND(12000000)} – ${formatVND(35000000)}`,
     creatorsWorked: "620+",
     creatorsWorkedNum: 620,
     initial: "H",
@@ -61,7 +65,7 @@ const BRANDS = [
     tags: ["Beauty", "Skincare"],
     activeCampaigns: "3",
     activeCampaignsNum: 3,
-    avgBudget: "$300 – $800",
+    avgBudget: `${formatVND(7000000)} – ${formatVND(18000000)}`,
     creatorsWorked: "210+",
     creatorsWorkedNum: 210,
     initial: "G",
@@ -75,7 +79,7 @@ const BRANDS = [
     tags: ["Travel", "Hospitality"],
     activeCampaigns: "1",
     activeCampaignsNum: 1,
-    avgBudget: "$1,200 – $2,500",
+    avgBudget: `${formatVND(28000000)} – ${formatVND(58000000)}`,
     creatorsWorked: "45+",
     creatorsWorkedNum: 45,
     initial: "A",
@@ -89,7 +93,7 @@ const BRANDS = [
     tags: ["Tech", "Gaming"],
     activeCampaigns: "2",
     activeCampaignsNum: 2,
-    avgBudget: "$2,000 – $4,500",
+    avgBudget: `${formatVND(45000000)} – ${formatVND(105000000)}`,
     creatorsWorked: "120+",
     creatorsWorkedNum: 120,
     initial: "V",
