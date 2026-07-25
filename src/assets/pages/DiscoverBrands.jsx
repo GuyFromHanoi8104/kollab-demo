@@ -1,105 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
 import { useAuth } from "../context/useAuth";
-import { formatVND } from "../../utils/currency";
-
-// Reusing brand names already established elsewhere in the app (Landing
-// Page's Active Brands, Campaigns Browse) instead of inventing new ones,
-// so the mock data feels like one connected product rather than disconnected
-// per-page placeholders.
-// avgBudget figures are illustrative placeholders scaled to a plausible VND
-// magnitude, not verified Vietnam KOL market rates -- sanity-check before
-// treating these as authoritative.
-const BRANDS = [
-  {
-    id: "shopee",
-    name: "Shopee Vietnam",
-    industry: "E-commerce",
-    location: "Ho Chi Minh City",
-    tags: ["E-commerce", "Retail"],
-    activeCampaigns: "4",
-    activeCampaignsNum: 4,
-    avgBudget: `${formatVND(30000000)} – ${formatVND(120000000)}`,
-    creatorsWorked: "340+",
-    creatorsWorkedNum: 340,
-    initial: "S",
-    logoBg: "#fff7ed",
-  },
-  {
-    id: "vinfast",
-    name: "VinFast",
-    industry: "Automotive",
-    location: "Hanoi",
-    tags: ["Automotive", "EV"],
-    activeCampaigns: "2",
-    activeCampaignsNum: 2,
-    avgBudget: `${formatVND(70000000)} – ${formatVND(150000000)}`,
-    creatorsWorked: "85+",
-    creatorsWorkedNum: 85,
-    initial: "V",
-    logoBg: "#e5eeff",
-  },
-  {
-    id: "highlands",
-    name: "Highlands Coffee",
-    industry: "F&B",
-    location: "Ho Chi Minh City",
-    tags: ["F&B", "Lifestyle"],
-    activeCampaigns: "6",
-    activeCampaignsNum: 6,
-    avgBudget: `${formatVND(12000000)} – ${formatVND(35000000)}`,
-    creatorsWorked: "620+",
-    creatorsWorkedNum: 620,
-    initial: "H",
-    logoBg: "#fef3c7",
-  },
-  {
-    id: "glow",
-    name: "GLOW Skin",
-    industry: "Beauty",
-    location: "Ho Chi Minh City",
-    tags: ["Beauty", "Skincare"],
-    activeCampaigns: "3",
-    activeCampaignsNum: 3,
-    avgBudget: `${formatVND(7000000)} – ${formatVND(18000000)}`,
-    creatorsWorked: "210+",
-    creatorsWorkedNum: 210,
-    initial: "G",
-    logoBg: "#e5eeff",
-  },
-  {
-    id: "azure",
-    name: "Azure Resorts",
-    industry: "Travel",
-    location: "Phu Quoc",
-    tags: ["Travel", "Hospitality"],
-    activeCampaigns: "1",
-    activeCampaignsNum: 1,
-    avgBudget: `${formatVND(28000000)} – ${formatVND(58000000)}`,
-    creatorsWorked: "45+",
-    creatorsWorkedNum: 45,
-    initial: "A",
-    logoBg: "#dbeafe",
-  },
-  {
-    id: "vertex",
-    name: "Vertex Tech",
-    industry: "Tech",
-    location: "Hanoi",
-    tags: ["Tech", "Gaming"],
-    activeCampaigns: "2",
-    activeCampaignsNum: 2,
-    avgBudget: `${formatVND(45000000)} – ${formatVND(105000000)}`,
-    creatorsWorked: "120+",
-    creatorsWorkedNum: 120,
-    initial: "V",
-    logoBg: "#e5eeff",
-  },
-];
+import { supabase } from "../../supabaseClient";
 
 const RECENTLY_VIEWED = [
   { name: "Shopee Vietnam", time: "2 hours ago", initial: "S" },
@@ -110,6 +16,10 @@ const SAVED_LISTS = [
   { name: "Beauty & Skincare Brands", meta: "3 brands" },
   { name: "High Budget Campaigns", meta: "5 brands • 2 new" },
 ];
+
+// Rotates a few muted background tints across cards purely for visual
+// variety -- not tied to any real brand data.
+const LOGO_BACKGROUNDS = ["#fff7ed", "#e5eeff", "#fef3c7", "#dbeafe"];
 
 function SearchIcon({ color }) {
   return (
@@ -182,24 +92,16 @@ function BrandCard({ brand, saved, onToggleSave, onViewProfile }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ background: brand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20 }}>
-              {brand.initial}
+              {brand.name?.charAt(0).toUpperCase()}
             </div>
             <div>
               <div style={{ color: appColors.navy, fontSize: 16, fontWeight: 700 }}>{brand.name}</div>
-              <div style={{ color: appColors.gray, fontSize: 14 }}>{brand.industry}</div>
+              <div style={{ color: appColors.gray, fontSize: 14 }}>{brand.industry || "Industry not set"}</div>
             </div>
           </div>
           <button type="button" onClick={() => onToggleSave(brand.id)} aria-label="Save brand" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             <SaveIcon filled={saved} />
           </button>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {brand.tags.map((tag) => (
-            <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 700, fontSize: 12, borderRadius: 9999, padding: "4px 12px" }}>
-              {tag}
-            </span>
-          ))}
         </div>
 
         <div style={{ display: "flex", gap: 16 }}>
@@ -209,16 +111,16 @@ function BrandCard({ brand, saved, onToggleSave, onViewProfile }) {
           </div>
           <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>CREATORS WORKED WITH</div>
-            <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, marginTop: 4 }}>{brand.creatorsWorked}</div>
+            <div style={{ fontWeight: 600, color: appColors.grayLight, fontSize: 13, marginTop: 6 }}>Not yet available</div>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <LocationIcon color={appColors.gray} />
-            <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>{brand.location}</span>
+            <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>{brand.location || "Location not set"}</span>
           </div>
-          <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>Avg. Budget: {brand.avgBudget}</span>
+          <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600, letterSpacing: 0.24 }}>Avg. Budget: Not yet available</span>
         </div>
 
         <button type="button" onClick={() => onViewProfile(brand)} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "16px 0", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer", marginTop: "auto" }}>
@@ -230,16 +132,66 @@ function BrandCard({ brand, saved, onToggleSave, onViewProfile }) {
 }
 
 export default function DiscoverBrands() {
+  const [brands, setBrands] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(new Set());
   const [activeIndustries, setActiveIndustries] = useState(new Set());
-  const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "campaigns" | "creators"
+  const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "campaigns"
   const [profileBrand, setProfileBrand] = useState(null);
 
   const { isLoggedIn, role } = useAuth();
 
-  const ALL_INDUSTRIES = [...new Set(BRANDS.map((b) => b.industry))];
-  const SORT_OPTIONS = ["relevance", "campaigns", "creators"];
-  const SORT_LABELS = { relevance: "Relevance", campaigns: "Most Active Campaigns", creators: "Most Creators Worked With" };
+  // Active campaign counts are real -- fetched separately and tallied
+  // client-side per brand_id, same pattern used for applications counts in
+  // ManageCampaigns.jsx. Creators-worked-with and avg budget have no real
+  // data source yet (no completed-collaboration tracking), so they stay
+  // placeholders.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const { data: brandRows } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "brand")
+        .order("created_at", { ascending: false });
+
+      const rows = brandRows ?? [];
+      const ids = rows.map((b) => b.id);
+      const counts = {};
+      if (ids.length > 0) {
+        const { data: campaignRows } = await supabase
+          .from("campaigns")
+          .select("brand_id")
+          .eq("status", "active")
+          .in("brand_id", ids);
+        (campaignRows ?? []).forEach((c) => {
+          counts[c.brand_id] = (counts[c.brand_id] || 0) + 1;
+        });
+      }
+
+      if (!active) return;
+      setBrands(
+        rows.map((b, i) => ({
+          id: b.id,
+          name: b.company_name || b.name,
+          industry: b.industry,
+          location: b.location,
+          activeCampaignsNum: counts[b.id] || 0,
+          activeCampaigns: String(counts[b.id] || 0),
+          logoBg: LOGO_BACKGROUNDS[i % LOGO_BACKGROUNDS.length],
+        }))
+      );
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const ALL_INDUSTRIES = [...new Set(brands.map((b) => b.industry).filter(Boolean))];
+  const SORT_OPTIONS = ["relevance", "campaigns"];
+  const SORT_LABELS = { relevance: "Relevance", campaigns: "Most Active Campaigns" };
 
   const toggleIndustry = (ind) => {
     setActiveIndustries((prev) => {
@@ -253,11 +205,10 @@ export default function DiscoverBrands() {
     setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length]);
   };
 
-  const visibleBrands = BRANDS
+  const visibleBrands = brands
     .filter((b) => activeIndustries.size === 0 || activeIndustries.has(b.industry))
     .sort((a, b) => {
       if (sortBy === "campaigns") return b.activeCampaignsNum - a.activeCampaignsNum;
-      if (sortBy === "creators") return b.creatorsWorkedNum - a.creatorsWorkedNum;
       return 0;
     });
 
@@ -369,7 +320,11 @@ export default function DiscoverBrands() {
             </div>
           </div>
 
-          {visibleBrands.length > 0 ? (
+          {loading ? (
+            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 48, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+              Loading brands…
+            </div>
+          ) : visibleBrands.length > 0 ? (
             <div className="kollab-discover-brands-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
               {visibleBrands.map((brand) => (
                 <BrandCard key={brand.id} brand={brand} saved={saved.has(brand.id)} onToggleSave={toggleSave} onViewProfile={setProfileBrand} />
@@ -377,7 +332,7 @@ export default function DiscoverBrands() {
             </div>
           ) : (
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 48, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
-              No brands match these filters.
+              {brands.length === 0 ? "No brands have signed up yet." : "No brands match these filters."}
             </div>
           )}
         </div>
@@ -436,22 +391,16 @@ export default function DiscoverBrands() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                 <div style={{ background: profileBrand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20 }}>
-                  {profileBrand.initial}
+                  {profileBrand.name?.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 18 }}>{profileBrand.name}</div>
-                  <div style={{ color: appColors.grayLight, fontSize: 13 }}>{profileBrand.industry} · {profileBrand.location}</div>
+                  <div style={{ color: appColors.grayLight, fontSize: 13 }}>{profileBrand.industry || "Industry not set"} · {profileBrand.location || "Location not set"}</div>
                 </div>
               </div>
               <button type="button" onClick={() => setProfileBrand(null)} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                 <CloseIcon />
               </button>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {profileBrand.tags.map((tag) => (
-                <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 700, fontSize: 12, borderRadius: 9999, padding: "4px 12px" }}>{tag}</span>
-              ))}
             </div>
 
             <div style={{ display: "flex", gap: 16 }}>
@@ -461,13 +410,13 @@ export default function DiscoverBrands() {
               </div>
               <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1 }}>
                 <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>CREATORS WORKED WITH</div>
-                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 24 }}>{profileBrand.creatorsWorked}</div>
+                <div style={{ fontWeight: 600, color: appColors.grayLight, fontSize: 13, marginTop: 6 }}>Not yet available</div>
               </div>
             </div>
 
             <div>
               <div style={{ color: appColors.grayLight, fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Average Budget</div>
-              <div style={{ color: appColors.navy, fontSize: 16, fontWeight: 600, marginTop: 4 }}>{profileBrand.avgBudget}</div>
+              <div style={{ color: appColors.grayLight, fontSize: 14, fontWeight: 600, marginTop: 4 }}>Not yet available</div>
             </div>
 
             <button type="button" onClick={() => setProfileBrand(null)} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
