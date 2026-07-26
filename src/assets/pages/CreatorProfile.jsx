@@ -298,13 +298,51 @@ export default function CreatorProfile() {
 
   // Viewing a profile is public; inviting a creator to a campaign requires
   // an account. Gate the action, not the page.
-  const { isLoggedIn, role } = useAuth();
+  const { isLoggedIn, role, user } = useAuth();
 
   const handleInviteClick = () => {
     if (isLoggedIn) {
       setModalOpen(true);
     } else {
       navigate("/login");
+    }
+  };
+
+  // Record a real "view" and seed the real saved state whenever a logged-in
+  // user lands on someone else's profile. Guests have no viewer_id to
+  // attach a view to, so this is skipped silently for them.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!user || !profile || user.id === profile.id) {
+        setSaved(false);
+        return;
+      }
+      await supabase.from("profile_views").upsert(
+        { viewer_id: user.id, viewed_profile_id: profile.id },
+        { onConflict: "viewer_id,viewed_profile_id" }
+      );
+      const { data } = await supabase
+        .from("saved_profiles")
+        .select("id")
+        .eq("owner_id", user.id)
+        .eq("saved_profile_id", profile.id)
+        .maybeSingle();
+      if (active) setSaved(!!data);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user, profile]);
+
+  const handleToggleSave = async () => {
+    if (!user || !profile) return;
+    if (saved) {
+      const { error } = await supabase.from("saved_profiles").delete().eq("owner_id", user.id).eq("saved_profile_id", profile.id);
+      if (!error) setSaved(false);
+    } else {
+      const { error } = await supabase.from("saved_profiles").insert({ owner_id: user.id, saved_profile_id: profile.id });
+      if (!error) setSaved(true);
     }
   };
 
@@ -516,7 +554,7 @@ export default function CreatorProfile() {
                     Invite to Campaign
                   </button>
                   <div style={{ display: "flex", gap: 16 }}>
-                    <button type="button" onClick={() => setSaved((s) => !s)} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
+                    <button type="button" onClick={handleToggleSave} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
                       <BookmarkIcon filled={saved} /> {saved ? "Saved" : "Save"}
                     </button>
                     <button type="button" onClick={() => navigate("/messages")} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
