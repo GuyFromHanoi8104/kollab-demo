@@ -27,7 +27,7 @@ function formatBudget(campaign) {
 
 function ChevronDownIcon() {
   return (
-    <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+    <svg width="12" height="8" viewBox="0 0 12 8" fill="none" style={{ pointerEvents: "none" }}>
       <path d="M1 1l5 5 5-5" stroke={appColors.gray} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -37,15 +37,6 @@ function PlusIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M8 1v14M1 8h14" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-function DotsIcon() {
-  return (
-    <svg width="16" height="4" viewBox="0 0 16 4" fill="none" style={{ pointerEvents: "none" }}>
-      <circle cx="2" cy="2" r="1.6" fill={appColors.grayLight} />
-      <circle cx="8" cy="2" r="1.6" fill={appColors.grayLight} />
-      <circle cx="14" cy="2" r="1.6" fill={appColors.grayLight} />
     </svg>
   );
 }
@@ -311,8 +302,17 @@ export default function ManageCampaigns() {
                         </span>
                       </td>
                       <td style={{ padding: "20px 24px", position: "relative" }} ref={openMenuId === c.id ? menuRef : null}>
-                        <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <DotsIcon />
+                        <button
+                          type="button"
+                          aria-label="More actions"
+                          onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                          style={{
+                            background: "white", border: `1px solid ${appColors.border}`, borderRadius: 8,
+                            cursor: "pointer", padding: "6px 12px", display: "flex", alignItems: "center", gap: 6,
+                            fontSize: 13, fontWeight: 600, color: appColors.gray,
+                          }}
+                        >
+                          Actions <ChevronDownIcon />
                         </button>
                         {openMenuId === c.id && (
                           <div style={{ position: "absolute", right: 24, top: "100%", background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, minWidth: 140, overflow: "hidden" }}>
