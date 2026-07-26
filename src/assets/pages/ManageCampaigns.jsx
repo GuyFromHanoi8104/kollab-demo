@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
@@ -67,6 +67,7 @@ export default function ManageCampaigns() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [nicheFilter, setNicheFilter] = useState("All");
   const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const statuses = ["All", "Active", "Reviewing", "Draft", "Completed"];
@@ -105,6 +106,22 @@ export default function ManageCampaigns() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCampaigns();
   }, [loadCampaigns]);
+
+  // Closes the row menu on any click outside it. Deliberately not a
+  // full-screen backdrop element -- a rendered backdrop needs a z-index
+  // higher than every trigger button on the page, which is exactly what
+  // made the "..." button itself unclickable (its own backdrop stacked
+  // above it). Listening on document sidesteps stacking order entirely.
+  useEffect(() => {
+    if (openMenuId == null) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenuId]);
 
   const filtered = campaigns
     .filter((c) => statusFilter === "All" || (STATUS_META[c.status]?.label ?? c.status) === statusFilter)
@@ -293,22 +310,19 @@ export default function ManageCampaigns() {
                           {meta.label}
                         </span>
                       </td>
-                      <td style={{ padding: "20px 24px", position: "relative" }}>
-                        <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 10, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 15 }}>
+                      <td style={{ padding: "20px 24px", position: "relative" }} ref={openMenuId === c.id ? menuRef : null}>
+                        <button type="button" aria-label="More actions" onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <DotsIcon />
                         </button>
                         {openMenuId === c.id && (
-                          <>
-                            <div onClick={() => setOpenMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-                            <div style={{ position: "absolute", right: 24, top: "100%", background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, minWidth: 140, overflow: "hidden" }}>
-                              <button type="button" onClick={() => handleDuplicate(c)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
-                                Duplicate
-                              </button>
-                              <button type="button" onClick={() => handleDelete(c.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: "#ba1a1a", cursor: "pointer" }}>
-                                Delete
-                              </button>
-                            </div>
-                          </>
+                          <div style={{ position: "absolute", right: 24, top: "100%", background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, minWidth: 140, overflow: "hidden" }}>
+                            <button type="button" onClick={() => handleDuplicate(c)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
+                              Duplicate
+                            </button>
+                            <button type="button" onClick={() => handleDelete(c.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: "#ba1a1a", cursor: "pointer" }}>
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
