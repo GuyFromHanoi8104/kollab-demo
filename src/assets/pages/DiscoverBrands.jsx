@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
@@ -7,19 +7,24 @@ import PremiumAIPanel from "../components/PremiumAIPanel";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 
-const RECENTLY_VIEWED = [
-  { name: "Shopee Vietnam", time: "2 hours ago", initial: "S" },
-  { name: "GLOW Skin", time: "Yesterday", initial: "G" },
-];
-
-const SAVED_LISTS = [
-  { name: "Beauty & Skincare Brands", meta: "3 brands" },
-  { name: "High Budget Campaigns", meta: "5 brands • 2 new" },
-];
-
 // Rotates a few muted background tints across cards purely for visual
 // variety -- not tied to any real brand data.
 const LOGO_BACKGROUNDS = ["#fff7ed", "#e5eeff", "#fef3c7", "#dbeafe"];
+
+function formatRelativeTime(dateStr) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function SearchIcon({ color }) {
   return (
@@ -132,14 +137,16 @@ function BrandCard({ brand, saved, onToggleSave, onViewProfile }) {
 }
 
 export default function DiscoverBrands() {
+  const navigate = useNavigate();
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saved, setSaved] = useState(new Set());
+  const [savedIds, setSavedIds] = useState(new Set());
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [activeIndustries, setActiveIndustries] = useState(new Set());
   const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "campaigns"
   const [profileBrand, setProfileBrand] = useState(null);
 
-  const { isLoggedIn, role } = useAuth();
+  const { isLoggedIn, role, user } = useAuth();
 
   // Active campaign counts are real -- fetched separately and tallied
   // client-side per brand_id, same pattern used for applications counts in
@@ -189,6 +196,67 @@ export default function DiscoverBrands() {
     };
   }, []);
 
+  // Saved state -- seeded from real saved_profiles rows so the heart icon
+  // reflects reality on load instead of resetting to unfilled every visit.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!user) {
+        setSavedIds(new Set());
+        return;
+      }
+      const { data } = await supabase.from("saved_profiles").select("saved_profile_id").eq("owner_id", user.id);
+      if (!active) return;
+      setSavedIds(new Set((data ?? []).map((r) => r.saved_profile_id)));
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  // Recently viewed brands -- sourced from profile_views rows this user
+  // created by opening a brand's profile modal, joined to profiles
+  // client-side, filtered to brand profiles since that's what this page's
+  // sidebar is about.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!user) {
+        setRecentlyViewed([]);
+        return;
+      }
+      const { data: viewRows } = await supabase
+        .from("profile_views")
+        .select("viewed_profile_id, viewed_at")
+        .eq("viewer_id", user.id)
+        .order("viewed_at", { ascending: false })
+        .limit(20);
+      const rows = viewRows ?? [];
+      const ids = rows.map((r) => r.viewed_profile_id);
+      if (ids.length === 0) {
+        if (active) setRecentlyViewed([]);
+        return;
+      }
+      const { data: profileRows } = await supabase.from("profiles").select("id, name, company_name").in("id", ids).eq("role", "brand");
+      const profilesById = {};
+      (profileRows ?? []).forEach((p) => {
+        profilesById[p.id] = p;
+      });
+      const merged = rows
+        .filter((r) => profilesById[r.viewed_profile_id])
+        .slice(0, 5)
+        .map((r) => ({
+          id: r.viewed_profile_id,
+          name: profilesById[r.viewed_profile_id].company_name || profilesById[r.viewed_profile_id].name,
+          time: formatRelativeTime(r.viewed_at),
+        }));
+      if (active) setRecentlyViewed(merged);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const ALL_INDUSTRIES = [...new Set(brands.map((b) => b.industry).filter(Boolean))];
   const SORT_OPTIONS = ["relevance", "campaigns"];
   const SORT_LABELS = { relevance: "Relevance", campaigns: "Most Active Campaigns" };
@@ -212,13 +280,59 @@ export default function DiscoverBrands() {
       return 0;
     });
 
-  const toggleSave = (id) => {
-    setSaved((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  // Saving requires an account -- gate the action (not the button's
+  // visibility, since guests should still be able to see what saving does).
+  const toggleSave = async (id) => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    if (savedIds.has(id)) {
+      const { error } = await supabase.from("saved_profiles").delete().eq("owner_id", user.id).eq("saved_profile_id", id);
+      if (!error) {
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    } else {
+      const { error } = await supabase.from("saved_profiles").insert({ owner_id: user.id, saved_profile_id: id });
+      if (!error) {
+        setSavedIds((prev) => new Set(prev).add(id));
+      }
+    }
   };
+
+  // Opening a brand's profile modal counts as a "view" -- upsert-on-conflict
+  // so re-viewing just bumps viewed_at instead of creating duplicates.
+  // Skipped silently for guests (no viewer_id to attach it to). The sidebar
+  // is updated optimistically since, unlike CreatorProfile.jsx, the view
+  // happens in a modal on this same mounted page rather than a navigation
+  // that would naturally trigger a refetch on return.
+  const handleViewProfile = (brand) => {
+    setProfileBrand(brand);
+    if (user) {
+      // supabase-js query builders are lazy thenables -- the request is
+      // only actually sent once awaited/then-ed, so this can't be dropped
+      // as a bare fire-and-forget call without silently doing nothing.
+      supabase.from("profile_views").upsert(
+        { viewer_id: user.id, viewed_profile_id: brand.id },
+        { onConflict: "viewer_id,viewed_profile_id" }
+      ).then();
+      setRecentlyViewed((prev) => {
+        const withoutThis = prev.filter((item) => item.id !== brand.id);
+        return [{ id: brand.id, name: brand.name, time: "Just now" }, ...withoutThis].slice(0, 5);
+      });
+    }
+  };
+
+  const handleRecentClick = (profileId) => {
+    const brand = brands.find((b) => b.id === profileId);
+    if (brand) handleViewProfile(brand);
+  };
+
+  const savedBrands = brands.filter((b) => savedIds.has(b.id));
 
   return (
     <div
@@ -327,7 +441,7 @@ export default function DiscoverBrands() {
           ) : visibleBrands.length > 0 ? (
             <div className="kollab-discover-brands-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24 }}>
               {visibleBrands.map((brand) => (
-                <BrandCard key={brand.id} brand={brand} saved={saved.has(brand.id)} onToggleSave={toggleSave} onViewProfile={setProfileBrand} />
+                <BrandCard key={brand.id} brand={brand} saved={savedIds.has(brand.id)} onToggleSave={toggleSave} onViewProfile={handleViewProfile} />
               ))}
             </div>
           ) : (
@@ -344,33 +458,41 @@ export default function DiscoverBrands() {
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", padding: "0 8px" }}>Recently Viewed</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {RECENTLY_VIEWED.map((item) => (
-                    <div key={item.name} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16 }}>
-                      <AvatarSquare initial={item.initial} size={48} radius={12} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.name}</div>
-                        <div style={{ color: appColors.gray, fontSize: 11 }}>{item.time}</div>
+                {recentlyViewed.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {recentlyViewed.map((item) => (
+                      <div key={item.id} onClick={() => handleRecentClick(item.id)} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, cursor: "pointer" }}>
+                        <AvatarSquare initial={item.name?.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.name}</div>
+                          <div style={{ color: appColors.gray, fontSize: 11 }}>{item.time}</div>
+                        </div>
+                        <ChevronRight color={appColors.grayLight} />
                       </div>
-                      <ChevronRight color={appColors.grayLight} />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: appColors.grayLight, fontSize: 13, padding: "0 8px" }}>No profiles viewed yet.</div>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", padding: "0 8px" }}>Saved Lists</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {SAVED_LISTS.map((list) => (
-                    <div key={list.name} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 17, display: "flex", gap: 12, alignItems: "center" }}>
-                      <AvatarSquare initial={list.name[0]} size={20} radius={4} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{list.name}</div>
-                        <div style={{ color: appColors.gray, fontSize: 11 }}>{list.meta}</div>
+                <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", padding: "0 8px" }}>Saved ({savedBrands.length})</div>
+                {savedBrands.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {savedBrands.slice(0, 5).map((b) => (
+                      <div key={b.id} onClick={() => handleViewProfile(b)} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, cursor: "pointer" }}>
+                        <AvatarSquare initial={b.name?.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{b.name}</div>
+                        </div>
+                        <ChevronRight color={appColors.grayLight} />
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: appColors.grayLight, fontSize: 13, padding: "0 8px" }}>No saved brands yet.</div>
+                )}
               </div>
             </>
           ) : (

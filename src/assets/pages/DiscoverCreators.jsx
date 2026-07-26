@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
@@ -7,16 +7,20 @@ import PremiumAIPanel from "../components/PremiumAIPanel";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 
-const RECENTLY_VIEWED = [
-  { name: "Minh Review", time: "2 hours ago", initial: "M" },
-  { name: "Thanh Beauty", time: "Yesterday", initial: "T" },
-];
-
-const SAVED_LISTS = [
-  { name: "Summer Campaign", meta: "12 creators • 4 new" },
-  { name: "Beauty Creators", meta: "8 creators" },
-  { name: "Food Campaign", meta: "24 creators • 2 new" },
-];
+function formatRelativeTime(dateStr) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function SearchIcon({ color }) {
   return (
@@ -67,13 +71,6 @@ function ChevronRight({ color }) {
   return (
     <svg width="7" height="12" viewBox="0 0 7 12" fill="none">
       <path d="M1 1l5 5-5 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function PlusIcon({ color }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 1v14M1 8h14" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -198,12 +195,20 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
 }
 
 export default function DiscoverCreators() {
+  const navigate = useNavigate();
   const [creators, setCreators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [compared, setCompared] = useState(new Set());
-  const [saved, setSaved] = useState(new Set());
+  const [savedIds, setSavedIds] = useState(new Set());
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [activeTags, setActiveTags] = useState(new Set());
   const [compareModalOpen, setCompareModalOpen] = useState(false);
+
+  // Guest-vs-account distinction: browsing is public, but "Recently Viewed"
+  // and "Saved" are inherently account-tied concepts (nowhere to persist
+  // them for an anonymous visitor), so they're hidden entirely when logged
+  // out rather than shown empty/fake.
+  const { isLoggedIn, user } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -223,6 +228,67 @@ export default function DiscoverCreators() {
     };
   }, []);
 
+  // Saved state -- seeded from real saved_profiles rows so the heart icon
+  // reflects reality on load instead of resetting to unfilled every visit.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!user) {
+        setSavedIds(new Set());
+        return;
+      }
+      const { data } = await supabase.from("saved_profiles").select("saved_profile_id").eq("owner_id", user.id);
+      if (!active) return;
+      setSavedIds(new Set((data ?? []).map((r) => r.saved_profile_id)));
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  // Recently viewed creators -- sourced from profile_views rows this user
+  // created by visiting CreatorProfile.jsx, joined to profiles client-side
+  // (same pattern used throughout the app), filtered to creator profiles
+  // since that's what this page's sidebar is about.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!user) {
+        setRecentlyViewed([]);
+        return;
+      }
+      const { data: viewRows } = await supabase
+        .from("profile_views")
+        .select("viewed_profile_id, viewed_at")
+        .eq("viewer_id", user.id)
+        .order("viewed_at", { ascending: false })
+        .limit(20);
+      const rows = viewRows ?? [];
+      const ids = rows.map((r) => r.viewed_profile_id);
+      if (ids.length === 0) {
+        if (active) setRecentlyViewed([]);
+        return;
+      }
+      const { data: profileRows } = await supabase.from("profiles").select("id, name").in("id", ids).eq("role", "creator");
+      const profilesById = {};
+      (profileRows ?? []).forEach((p) => {
+        profilesById[p.id] = p;
+      });
+      const merged = rows
+        .filter((r) => profilesById[r.viewed_profile_id])
+        .slice(0, 5)
+        .map((r) => ({
+          id: r.viewed_profile_id,
+          name: profilesById[r.viewed_profile_id].name,
+          time: formatRelativeTime(r.viewed_at),
+        }));
+      if (active) setRecentlyViewed(merged);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const ALL_TAGS = [...new Set(creators.flatMap((c) => c.niche || []))];
 
   const toggleTag = (tag) => {
@@ -237,12 +303,6 @@ export default function DiscoverCreators() {
     (c) => activeTags.size === 0 || (c.niche || []).some((t) => activeTags.has(t))
   );
 
-  // Guest-vs-account distinction: browsing is public, but "Recently Viewed"
-  // and "Saved Lists" are inherently account-tied concepts (nowhere to
-  // persist them for an anonymous visitor), so they're hidden entirely when
-  // logged out rather than shown empty/fake.
-  const { isLoggedIn } = useAuth();
-
   const toggleCompare = (id) => {
     setCompared((prev) => {
       const next = new Set(prev);
@@ -250,15 +310,33 @@ export default function DiscoverCreators() {
       return next;
     });
   };
-  const toggleSave = (id) => {
-    setSaved((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+
+  // Saving requires an account -- gate the action (not the button's
+  // visibility, since guests should still be able to see what saving does).
+  const toggleSave = async (id) => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    if (savedIds.has(id)) {
+      const { error } = await supabase.from("saved_profiles").delete().eq("owner_id", user.id).eq("saved_profile_id", id);
+      if (!error) {
+        setSavedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    } else {
+      const { error } = await supabase.from("saved_profiles").insert({ owner_id: user.id, saved_profile_id: id });
+      if (!error) {
+        setSavedIds((prev) => new Set(prev).add(id));
+      }
+    }
   };
 
   const comparedCreators = creators.filter((c) => compared.has(c.id));
+  const savedCreators = creators.filter((c) => savedIds.has(c.id));
 
   return (
     <div
@@ -380,7 +458,7 @@ export default function DiscoverCreators() {
                   creator={creator}
                   compared={compared.has(creator.id)}
                   onToggleCompare={toggleCompare}
-                  saved={saved.has(creator.id)}
+                  saved={savedIds.has(creator.id)}
                   onToggleSave={toggleSave}
                 />
               ))}
@@ -400,38 +478,41 @@ export default function DiscoverCreators() {
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", padding: "0 8px" }}>Recently Viewed</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {RECENTLY_VIEWED.map((item) => (
-                    <div key={item.name} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16 }}>
-                      <AvatarSquare initial={item.initial} size={48} radius={12} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.name}</div>
-                        <div style={{ color: appColors.gray, fontSize: 11 }}>{item.time}</div>
-                      </div>
-                      <ChevronRight color={appColors.grayLight} />
-                    </div>
-                  ))}
-                </div>
+                {recentlyViewed.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {recentlyViewed.map((item) => (
+                      <Link key={item.id} to={`/creator/${item.id}`} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, textDecoration: "none" }}>
+                        <AvatarSquare initial={item.name.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.name}</div>
+                          <div style={{ color: appColors.gray, fontSize: 11 }}>{item.time}</div>
+                        </div>
+                        <ChevronRight color={appColors.grayLight} />
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: appColors.grayLight, fontSize: 13, padding: "0 8px" }}>No profiles viewed yet.</div>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px" }}>
-                  <span style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase" }}>Saved Lists</span>
-                  <button type="button" aria-label="New list" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
-                    <PlusIcon color={appColors.grayLight} />
-                  </button>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {SAVED_LISTS.map((list) => (
-                    <div key={list.name} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 17, display: "flex", gap: 12, alignItems: "center" }}>
-                      <AvatarSquare initial={list.name[0]} size={20} radius={4} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{list.name}</div>
-                        <div style={{ color: appColors.gray, fontSize: 11 }}>{list.meta}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", padding: "0 8px" }}>Saved ({savedCreators.length})</div>
+                {savedCreators.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {savedCreators.slice(0, 5).map((c) => (
+                      <Link key={c.id} to={`/creator/${c.id}`} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, textDecoration: "none" }}>
+                        <AvatarSquare initial={c.name?.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</div>
+                        </div>
+                        <ChevronRight color={appColors.grayLight} />
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: appColors.grayLight, fontSize: 13, padding: "0 8px" }}>No saved creators yet.</div>
+                )}
               </div>
             </>
           ) : (
