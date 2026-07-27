@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
@@ -58,7 +59,9 @@ export default function ManageCampaigns() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [nicheFilter, setNicheFilter] = useState("All");
   const [openMenuId, setOpenMenuId] = useState(null);
-  const menuRef = useRef(null);
+  const [menuPos, setMenuPos] = useState(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const statuses = ["All", "Active", "Reviewing", "Draft", "Completed"];
@@ -106,13 +109,37 @@ export default function ManageCampaigns() {
   useEffect(() => {
     if (openMenuId == null) return;
     const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target)
+      ) {
         setOpenMenuId(null);
       }
     };
+    // Also close on scroll -- the menu is positioned from a getBoundingClientRect()
+    // snapshot taken at open time, so it'd otherwise drift away from the button
+    // as soon as the table (or the page) scrolls. Capture phase catches scroll
+    // events from the table's own scroll container, which don't bubble.
+    const handleScroll = () => setOpenMenuId(null);
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("scroll", handleScroll, true);
+    };
   }, [openMenuId]);
+
+  const toggleMenu = (id, e) => {
+    if (openMenuId === id) {
+      setOpenMenuId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 6, left: rect.right - 140 });
+    setOpenMenuId(id);
+  };
+
+  const activeCampaign = campaigns.find((c) => c.id === openMenuId) ?? null;
 
   const filtered = campaigns
     .filter((c) => statusFilter === "All" || (STATUS_META[c.status]?.label ?? c.status) === statusFilter)
@@ -301,11 +328,12 @@ export default function ManageCampaigns() {
                           {meta.label}
                         </span>
                       </td>
-                      <td style={{ padding: "20px 24px", position: "relative" }} ref={openMenuId === c.id ? menuRef : null}>
+                      <td style={{ padding: "20px 24px", position: "relative" }}>
                         <button
                           type="button"
                           aria-label="More actions"
-                          onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                          ref={openMenuId === c.id ? triggerRef : null}
+                          onClick={(e) => toggleMenu(c.id, e)}
                           style={{
                             background: "white", border: `1px solid ${appColors.border}`, borderRadius: 8,
                             cursor: "pointer", padding: "6px 12px", display: "flex", alignItems: "center", gap: 6,
@@ -314,16 +342,6 @@ export default function ManageCampaigns() {
                         >
                           Actions <ChevronDownIcon />
                         </button>
-                        {openMenuId === c.id && (
-                          <div style={{ position: "absolute", right: 24, top: "100%", background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 20, minWidth: 140, overflow: "hidden" }}>
-                            <button type="button" onClick={() => handleDuplicate(c)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
-                              Duplicate
-                            </button>
-                            <button type="button" onClick={() => handleDelete(c.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: "#ba1a1a", cursor: "pointer" }}>
-                              Delete
-                            </button>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   );
@@ -349,6 +367,25 @@ export default function ManageCampaigns() {
       </main>
 
       {createModalOpen && <CreateCampaignModal onClose={() => setCreateModalOpen(false)} onCreate={handleCreateCampaign} />}
+
+      {activeCampaign && menuPos && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: "fixed", top: menuPos.top, left: menuPos.left,
+            background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12,
+            boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 1000, minWidth: 140, overflow: "hidden",
+          }}
+        >
+          <button type="button" onClick={() => handleDuplicate(activeCampaign)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
+            Duplicate
+          </button>
+          <button type="button" onClick={() => handleDelete(activeCampaign.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: "#ba1a1a", cursor: "pointer" }}>
+            Delete
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
