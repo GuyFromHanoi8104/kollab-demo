@@ -269,6 +269,7 @@ export default function CreatorProfile() {
   const [modalOpen, setModalOpen] = useState(false);
   const [portfolioFilter, setPortfolioFilter] = useState("All Content");
   const [linkCopied, setLinkCopied] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -306,6 +307,41 @@ export default function CreatorProfile() {
     } else {
       navigate("/login");
     }
+  };
+
+  // Finds the existing brand<->creator conversation (not tied to any
+  // campaign, since this page has no campaign context) or creates one, then
+  // hands off to Messages with it pre-selected -- which also puts mobile
+  // straight into the thread view rather than the conversation list.
+  const handleMessageClick = async () => {
+    if (!isLoggedIn) {
+      navigate("/login");
+      return;
+    }
+    if (!user || !profile || messageLoading) return;
+    setMessageLoading(true);
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("brand_id", user.id)
+      .eq("creator_id", profile.id)
+      .is("campaign_id", null)
+      .maybeSingle();
+
+    let conversationId = existing?.id;
+    if (!conversationId) {
+      const { data: created, error } = await supabase
+        .from("conversations")
+        .insert({ brand_id: user.id, creator_id: profile.id })
+        .select("id")
+        .single();
+      setMessageLoading(false);
+      if (error) return;
+      conversationId = created.id;
+    } else {
+      setMessageLoading(false);
+    }
+    navigate("/messages", { state: { conversationId } });
   };
 
   // Record a real "view" and seed the real saved state whenever a logged-in
@@ -557,8 +593,8 @@ export default function CreatorProfile() {
                     <button type="button" onClick={handleToggleSave} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
                       <BookmarkIcon filled={saved} /> {saved ? "Saved" : "Save"}
                     </button>
-                    <button type="button" onClick={() => navigate("/messages")} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: "pointer" }}>
-                      <MessageIcon color={appColors.navy} /> Message
+                    <button type="button" onClick={handleMessageClick} disabled={messageLoading} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "13px 0", display: "flex", gap: 8, alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.navy, fontSize: 16, cursor: messageLoading ? "not-allowed" : "pointer", opacity: messageLoading ? 0.6 : 1 }}>
+                      <MessageIcon color={appColors.navy} /> {messageLoading ? "Opening…" : "Message"}
                     </button>
                   </div>
                 </div>
