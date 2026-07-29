@@ -1,22 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
-
-// NOTE: this is its own static demo dataset, not live-synced with the Save
-// toggles on Discover Creators / Creator Profile (those are local component
-// state and don't persist across pages yet). Reusing the same creator
-// identities for consistency, but wiring real shared "saved" state across
-// the app is a bigger piece for later.
-const SAVED_CREATORS = [
-  { id: "linh", name: "Linh Nguyen", handle: "@linh.beauty", tags: ["Beauty", "Lifestyle"], statLabel: "TIKTOK FOLLOWERS", statValue: "245K", engagement: "6.8%", avgViews: "420K Avg. Views", location: "Ho Chi Minh City", list: "Beauty Creators", initial: "L" },
-  { id: "minh", name: "Minh Review", handle: "@minh.techtips", tags: ["Tech", "Gadgets"], statLabel: "TIKTOK FOLLOWERS", statValue: "1.2M", engagement: "4.8%", avgViews: "450K Avg. Views", location: "Ho Chi Minh City", list: "Summer Campaign", initial: "M" },
-  { id: "thanh", name: "Thanh Beauty", handle: "@thanh.glam", tags: ["Beauty", "Luxury"], statLabel: "INSTAGRAM FOLLOWERS", statValue: "840K", engagement: "3.2%", avgViews: "120K Avg. Views", location: "Hanoi, VN", list: "Beauty Creators", initial: "T" },
-  { id: "khoa", name: "Khoa Fitness", handle: "@khoa.trains", tags: ["Fitness", "Wellness"], statLabel: "TIKTOK FOLLOWERS", statValue: "2.4M", engagement: "5.5%", avgViews: "680K Avg. Views", location: "Ho Chi Minh City", list: "Summer Campaign", initial: "K" },
-];
-
-const LISTS = ["All Saved", "Summer Campaign", "Beauty Creators", "Food Campaign"];
+import { useAuth } from "../context/useAuth";
+import { supabase } from "../../supabaseClient";
 
 function LocationIcon({ color }) {
   return (
@@ -34,7 +22,20 @@ function HeartIcon() {
   );
 }
 
+// Followers/engagement have no real data source yet (needs a TikTok/Instagram
+// API integration -- separate future task), same as Discover Creators. Show
+// an honest placeholder rather than inventing numbers for real people.
+function StatPlaceholder({ label }) {
+  return (
+    <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
+      <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontWeight: 600, color: appColors.grayLight, fontSize: 13, marginTop: 6 }}>Not yet available</div>
+    </div>
+  );
+}
+
 function SavedCreatorCard({ creator, onUnsave }) {
+  const niches = creator.niche || [];
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ height: 200, background: "linear-gradient(135deg, #cbd5e1, #94a3b8)", position: "relative" }}>
@@ -46,35 +47,28 @@ function SavedCreatorCard({ creator, onUnsave }) {
         >
           <HeartIcon />
         </button>
-        <span style={{ position: "absolute", left: 16, bottom: 16, background: "rgba(255,255,255,0.9)", borderRadius: 8, padding: "4px 12px", fontWeight: 700, color: appColors.primary, fontSize: 11 }}>
-          {creator.list}
-        </span>
       </div>
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
         <div>
           <div style={{ color: appColors.navy, fontSize: 16, fontWeight: 700 }}>{creator.name}</div>
-          <div style={{ color: appColors.gray, fontSize: 14 }}>{creator.handle}</div>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            {creator.tags.map((tag) => (
-              <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 700, fontSize: 12, borderRadius: 9999, padding: "4px 12px" }}>{tag}</span>
-            ))}
-          </div>
+          <div style={{ color: appColors.gray, fontSize: 14 }}>{creator.handle || "—"}</div>
+          {niches.length > 0 && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              {niches.map((tag) => (
+                <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 700, fontSize: 12, borderRadius: 9999, padding: "4px 12px" }}>{tag}</span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 16 }}>
-          <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>{creator.statLabel}</div>
-            <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, marginTop: 4 }}>{creator.statValue}</div>
-          </div>
-          <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>ENGAGEMENT</div>
-            <div style={{ fontWeight: 700, color: "#924700", fontSize: 24, letterSpacing: -0.24, marginTop: 4 }}>{creator.engagement}</div>
-          </div>
+          <StatPlaceholder label="Followers" />
+          <StatPlaceholder label="Engagement" />
         </div>
 
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <LocationIcon color={appColors.gray} />
-          <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600 }}>{creator.location}</span>
+          <span style={{ color: appColors.gray, fontSize: 12, fontWeight: 600 }}>{creator.location || "Location not set"}</span>
         </div>
 
         <Link
@@ -89,14 +83,41 @@ function SavedCreatorCard({ creator, onUnsave }) {
 }
 
 export default function SavedCreators() {
-  const [creators, setCreators] = useState(SAVED_CREATORS);
-  const [activeList, setActiveList] = useState("All Saved");
+  const { user } = useAuth();
+  const [creators, setCreators] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleUnsave = (id) => {
+  // Real saved_profiles rows joined to profiles client-side (same pattern
+  // used throughout the app), scoped to role "creator" since this page is
+  // specifically the brand-side "Saved Creators" list.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const { data: savedRows } = await supabase.from("saved_profiles").select("saved_profile_id").eq("owner_id", user.id);
+      const ids = (savedRows ?? []).map((r) => r.saved_profile_id);
+      if (ids.length === 0) {
+        if (active) {
+          setCreators([]);
+          setLoading(false);
+        }
+        return;
+      }
+      const { data: profileRows } = await supabase.from("profiles").select("*").in("id", ids).eq("role", "creator");
+      if (!active) return;
+      setCreators(profileRows ?? []);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const handleUnsave = async (id) => {
     setCreators((prev) => prev.filter((c) => c.id !== id));
+    await supabase.from("saved_profiles").delete().eq("owner_id", user.id).eq("saved_profile_id", id);
   };
-
-  const filtered = activeList === "All Saved" ? creators : creators.filter((c) => c.list === activeList);
 
   return (
     <div
@@ -129,40 +150,22 @@ export default function SavedCreators() {
       <main className="kollab-saved-creators-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32, display: "flex", flexDirection: "column", gap: 32 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h1 style={{ fontWeight: 600, color: appColors.navy, fontSize: 36, letterSpacing: -0.72, margin: 0 }}>Saved Creators</h1>
-          <p style={{ color: appColors.grayLight, fontSize: 16, margin: 0 }}>Creators you've bookmarked, organized into your lists.</p>
+          <p style={{ color: appColors.grayLight, fontSize: 16, margin: 0 }}>Creators you've bookmarked ({creators.length}).</p>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {LISTS.map((list) => {
-            const count = list === "All Saved" ? SAVED_CREATORS.length : SAVED_CREATORS.filter((c) => c.list === list).length;
-            return (
-              <button
-                key={list}
-                type="button"
-                onClick={() => setActiveList(list)}
-                style={{
-                  background: activeList === list ? appColors.primary : "white",
-                  border: `1px solid ${activeList === list ? appColors.primary : appColors.border}`,
-                  borderRadius: 9999, padding: "9px 17px", fontWeight: 600, fontSize: 14,
-                  color: activeList === list ? "white" : appColors.gray, cursor: "pointer",
-                  transition: "background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out",
-                }}
-              >
-                {list} ({count})
-              </button>
-            );
-          })}
-        </div>
-
-        {filtered.length > 0 ? (
+        {loading ? (
+          <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 64, textAlign: "center", color: appColors.grayLight }}>
+            Loading saved creators…
+          </div>
+        ) : creators.length > 0 ? (
           <div className="kollab-saved-creators-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-            {filtered.map((creator) => (
+            {creators.map((creator) => (
               <SavedCreatorCard key={creator.id} creator={creator} onUnsave={handleUnsave} />
             ))}
           </div>
         ) : (
           <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 64, textAlign: "center", color: appColors.grayLight }}>
-            No creators saved to this list yet.
+            No creators saved yet. <Link to="/discover" style={{ color: appColors.primary, fontWeight: 700 }}>Browse Discover Creators</Link> to save some.
           </div>
         )}
       </main>
