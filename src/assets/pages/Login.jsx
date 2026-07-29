@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import TransactionalHeader from "../components/TransactionalHeader";
 import { supabase } from "../../supabaseClient";
@@ -167,6 +167,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const resetSuccess = location.state?.resetSuccess ?? false;
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -268,6 +270,12 @@ export default function Login() {
             </p>
           </div>
 
+          {resetSuccess && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", color: "#16a34a", fontSize: 13, fontWeight: 600 }}>
+              Password reset successful -- please log in with your new password.
+            </div>
+          )}
+
           <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
               <label style={{ color: colors.gray, fontWeight: 600, fontSize: 13 }}>Email</label>
@@ -303,9 +311,9 @@ export default function Login() {
                 />
                 <span style={{ color: colors.gray, fontSize: 12, fontWeight: 500 }}>Remember me</span>
               </label>
-              <a href="/forgot-password" style={{ color: colors.blueDark, fontSize: 12, fontWeight: 500, textDecoration: "none" }}>
+              <Link to="/forgot-password" style={{ color: colors.blueDark, fontSize: 12, fontWeight: 500, textDecoration: "none" }}>
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}

@@ -34,6 +34,15 @@ function ChevronDownIcon() {
   );
 }
 
+function CheckCircleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="8" fill="#16a34a" />
+      <path d="M4.5 8.2l2.2 2.2 4.5-4.4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function PlusIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -64,6 +73,7 @@ export default function ManageCampaigns() {
   const dropdownRef = useRef(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [successToast, setSuccessToast] = useState("");
   const statuses = ["All", "Active", "Reviewing", "Draft", "Completed"];
   const niches = ["All", ...new Set(campaigns.map((c) => c.niche))];
 
@@ -185,6 +195,23 @@ export default function ManageCampaigns() {
     await loadCampaigns();
   };
 
+  // Restricting to brand_id here is belt-and-suspenders -- the RLS update
+  // policy on `campaigns` already scopes updates to rows owned by the
+  // authenticated brand, confirmed by attempting a cross-brand update
+  // directly against Supabase and seeing it reject with 0 rows affected.
+  const handleActivate = async (id) => {
+    setOpenMenuId(null);
+    setActionError("");
+    const { error } = await supabase.from("campaigns").update({ status: "active" }).eq("id", id).eq("brand_id", user.id);
+    if (error) {
+      setActionError("Couldn't activate that campaign. Please try again.");
+      return;
+    }
+    await loadCampaigns();
+    setSuccessToast("Campaign activated");
+    setTimeout(() => setSuccessToast(""), 2500);
+  };
+
   const handleDuplicate = async (campaign) => {
     setOpenMenuId(null);
     setActionError("");
@@ -258,6 +285,11 @@ export default function ManageCampaigns() {
         </div>
 
         {actionError && <div style={{ color: "#ba1a1a", fontSize: 14, fontWeight: 600 }}>{actionError}</div>}
+        {successToast && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center", color: "#16a34a", fontSize: 14, fontWeight: 600 }}>
+            <CheckCircleIcon /> {successToast}
+          </div>
+        )}
 
         <div className="kollab-manage-campaigns-stats" style={{ display: "flex", gap: 24 }}>
           {stats.map((stat) => (
@@ -377,6 +409,11 @@ export default function ManageCampaigns() {
             boxShadow: "0px 10px 25px -5px rgba(0,0,0,0.15)", zIndex: 1000, minWidth: 140, overflow: "hidden",
           }}
         >
+          {activeCampaign.status === "draft" && (
+            <button type="button" onClick={() => handleActivate(activeCampaign.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
+              Activate
+            </button>
+          )}
           <button type="button" onClick={() => handleDuplicate(activeCampaign)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 16px", fontSize: 13, color: appColors.navy, cursor: "pointer" }}>
             Duplicate
           </button>
