@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import KollabLogo from "../components/KollabLogo";
 import Footer from "../components/Footer";
 import MarketingNavBar from "../components/MarketingNavBar";
+import { supabase } from "../../supabaseClient";
 
 const colors = {
   navy: "#191c1e",
@@ -13,17 +13,9 @@ const colors = {
 
 const TRENDING_TAGS = ["Beauty", "Tech", "Lifestyle", "Fitness"];
 
-const FEATURED_KOLS = [
-  { handle: "@linh.beauty", niche: "Beauty & Lifestyle", followers: "120K", er: "5.2% ER", tint: "rgba(37,99,235,0.1)", initial: "L" },
-  { handle: "@minh.review", niche: "Tech & Gadgets", followers: "85K", er: "4.8% ER", tint: "rgba(37,99,235,0.16)", initial: "M" },
-  { handle: "@eat.with.tui", niche: "Food & Travel", followers: "42K", er: "6.1% ER", tint: "rgba(101,109,132,0.1)", initial: "T" },
-];
-
-const ACTIVE_BRANDS = [
-  { name: "VinFast", category: "Automotive", tint: "rgba(37,99,235,0.1)", initial: "V" },
-  { name: "Shopee Vietnam", category: "E-commerce", tint: "rgba(37,99,235,0.16)", initial: "S" },
-  { name: "Highlands Coffee", category: "F&B", tint: "rgba(101,109,132,0.1)", initial: "H" },
-];
+// Cycled by index for real rows, matching the visual variety the old mock
+// data had per-item instead of one flat color for every row.
+const ROW_TINTS = ["rgba(37,99,235,0.1)", "rgba(37,99,235,0.16)", "rgba(101,109,132,0.1)"];
 
 const STATS = [
   { value: "1000+", label: "Active KOLs", tint: "rgba(219,225,255,0.5)" },
@@ -244,33 +236,34 @@ function SidebarPanel({ title, viewAllTo, children }) {
   );
 }
 
-function FeaturedKolRow({ kol }) {
+// Follower counts/engagement rate have no real data source yet (needs a
+// TikTok/Instagram API integration -- separate future task), so this row
+// just doesn't claim numbers it doesn't have, rather than showing fake ones.
+function FeaturedKolRow({ kol, tint }) {
+  const niches = kol.niche || [];
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center", width: "100%" }}>
-      <div style={{ borderRadius: "50%", background: kol.tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 56, height: 56, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1 }}>
-        {kol.initial}
+      <div style={{ borderRadius: "50%", background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 56, height: 56, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1 }}>
+        {kol.name?.charAt(0).toUpperCase()}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{kol.handle}</p>
-        <p style={{ fontWeight: 500, color: colors.gray, fontSize: 12, margin: 0 }}>{kol.niche}</p>
-      </div>
-      <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{kol.followers}</p>
-        <p style={{ fontWeight: 700, color: colors.blue, fontSize: 12, margin: 0 }}>{kol.er}</p>
+        <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{kol.handle || kol.name}</p>
+        <p style={{ fontWeight: 500, color: colors.gray, fontSize: 12, margin: 0 }}>{niches.length > 0 ? niches.join(" & ") : "Creator"}</p>
       </div>
     </div>
   );
 }
 
-function BrandRow({ brand }) {
+function BrandRow({ brand, tint }) {
+  const displayName = brand.company_name || brand.name;
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center", width: "100%" }}>
-      <div style={{ borderRadius: 12, background: brand.tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 48, height: 48, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1 }}>
-        {brand.initial}
+      <div style={{ borderRadius: 12, background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 48, height: 48, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1 }}>
+        {displayName?.charAt(0).toUpperCase()}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{brand.name}</p>
-        <p style={{ fontWeight: 500, color: colors.gray, fontSize: 12, margin: 0 }}>{brand.category}</p>
+        <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{displayName}</p>
+        <p style={{ fontWeight: 500, color: colors.gray, fontSize: 12, margin: 0 }}>{brand.industry || "Brand"}</p>
       </div>
     </div>
   );
@@ -279,6 +272,24 @@ function BrandRow({ brand }) {
 
 export default function LandingPage() {
   const [mode, setMode] = useState("kols"); // "kols" | "campaigns"
+  const [featuredCreators, setFeaturedCreators] = useState([]);
+  const [activeBrands, setActiveBrands] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [{ data: creatorRows }, { data: brandRows }] = await Promise.all([
+        supabase.from("profiles").select("id, name, handle, niche").eq("role", "creator").order("created_at", { ascending: false }).limit(3),
+        supabase.from("profiles").select("id, name, company_name, industry").eq("role", "brand").order("created_at", { ascending: false }).limit(3),
+      ]);
+      if (!active) return;
+      setFeaturedCreators(creatorRows ?? []);
+      setActiveBrands(brandRows ?? []);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div
@@ -378,14 +389,22 @@ export default function LandingPage() {
         {/* Sidebar, 4 cols */}
         <div style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: 40, alignItems: "flex-start", minWidth: 0 }}>
           <SidebarPanel title="Featured KOLs" viewAllTo="/discover">
-            {FEATURED_KOLS.map((kol) => (
-              <FeaturedKolRow key={kol.handle} kol={kol} />
-            ))}
+            {featuredCreators.length > 0 ? (
+              featuredCreators.map((kol, i) => (
+                <FeaturedKolRow key={kol.id} kol={kol} tint={ROW_TINTS[i % ROW_TINTS.length]} />
+              ))
+            ) : (
+              <p style={{ color: colors.gray, fontSize: 13, margin: 0 }}>No creators have signed up yet.</p>
+            )}
           </SidebarPanel>
           <SidebarPanel title="Active Brands" viewAllTo="/discover-brands">
-            {ACTIVE_BRANDS.map((brand) => (
-              <BrandRow key={brand.name} brand={brand} />
-            ))}
+            {activeBrands.length > 0 ? (
+              activeBrands.map((brand, i) => (
+                <BrandRow key={brand.id} brand={brand} tint={ROW_TINTS[i % ROW_TINTS.length]} />
+              ))
+            ) : (
+              <p style={{ color: colors.gray, fontSize: 13, margin: 0 }}>No brands have signed up yet.</p>
+            )}
           </SidebarPanel>
         </div>
       </div>
