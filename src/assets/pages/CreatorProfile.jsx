@@ -6,8 +6,8 @@ import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { formatVND } from "../../utils/currency";
+import { combinedFollowers, formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 
-const STAT_LABELS = ["TIKTOK FOLLOWERS", "IG FOLLOWERS", "ENGAGEMENT", "AVG VIEWS", "CAMPAIGNS"];
 
 const SIMILAR_CREATORS = [
   { name: "Tram Anh", niche: "Minimal Fashion", followers: "150K" },
@@ -100,16 +100,36 @@ function AvatarPlaceholder({ size, radius, label }) {
   );
 }
 
-function StatCard({ label }) {
+function StatCard({ label, value }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "25px", display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ color: appColors.grayLight, fontSize: 12, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase" }}>
         {label}
       </span>
-      <span style={{ color: appColors.grayLight, fontSize: 15, fontWeight: 600 }}>
-        Not yet available
-      </span>
+      {value != null ? (
+        <span style={{ color: appColors.navy, fontSize: 20, fontWeight: 700 }}>{value}</span>
+      ) : (
+        <span style={{ color: appColors.grayLight, fontSize: 15, fontWeight: 600 }}>
+          Not yet available
+        </span>
+      )}
     </div>
+  );
+}
+
+// These are self-reported by the creator (My Profile's Edit Profile), not
+// pulled from a TikTok/Instagram API -- stats_verified just reflects
+// whether someone's spot-checked the number, not that it's independently
+// confirmed on every view.
+function VerifiedBadge({ verified }) {
+  return verified ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontWeight: 700, fontSize: 12 }}>
+      ✓ Verified
+    </span>
+  ) : (
+    <span style={{ display: "inline-flex", alignItems: "center", color: appColors.grayLight, fontWeight: 600, fontSize: 12 }}>
+      Self-reported
+    </span>
   );
 }
 
@@ -202,6 +222,17 @@ function InviteModal({ creator, onClose }) {
                     <span key={t} style={{ background: "white", color: appColors.primary, fontWeight: 700, fontSize: 10, borderRadius: 9999, padding: "2px 8px" }}>{t}</span>
                   ))}
                 </div>
+                {hasAnyStats(creator.stats) && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, fontSize: 12 }}>
+                    {combinedFollowers(creator.stats) != null && (
+                      <span style={{ color: appColors.navy, fontWeight: 700 }}>{formatCount(combinedFollowers(creator.stats))} followers</span>
+                    )}
+                    {creator.stats.engagement_rate != null && (
+                      <span style={{ color: appColors.navy, fontWeight: 700 }}>{formatEngagement(creator.stats.engagement_rate)} engagement</span>
+                    )}
+                    <VerifiedBadge verified={!!creator.stats.stats_verified} />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -504,10 +535,19 @@ export default function CreatorProfile() {
               </div>
             </div>
 
-            <div className="kollab-creator-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-              {STAT_LABELS.map((label) => (
-                <StatCard key={label} label={label} />
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {hasAnyStats(profile) && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <VerifiedBadge verified={!!profile.stats_verified} />
+                </div>
+              )}
+              <div className="kollab-creator-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                <StatCard label="TIKTOK FOLLOWERS" value={formatCount(profile.tiktok_followers)} />
+                <StatCard label="TIKTOK AVG VIEWS" value={formatCount(profile.tiktok_avg_views)} />
+                <StatCard label="IG FOLLOWERS" value={formatCount(profile.instagram_followers)} />
+                <StatCard label="IG AVG VIEWS" value={formatCount(profile.instagram_avg_views)} />
+                <StatCard label="ENGAGEMENT" value={formatEngagement(profile.engagement_rate)} />
+              </div>
             </div>
 
             <div className="kollab-creator-profile-insights-row" style={{ display: "flex", gap: 24 }}>
@@ -637,7 +677,7 @@ export default function CreatorProfile() {
       </main>
       )}
 
-      {modalOpen && profile && <InviteModal creator={{ id: profile.id, name: displayName, handle, niche: niches }} onClose={() => setModalOpen(false)} />}
+      {modalOpen && profile && <InviteModal creator={{ id: profile.id, name: displayName, handle, niche: niches, stats: profile }} onClose={() => setModalOpen(false)} />}
     </div>
   );
 }

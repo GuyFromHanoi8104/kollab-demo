@@ -5,6 +5,7 @@ import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { formatVND } from "../../utils/currency";
+import { formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 
 // applications.status -> display label + colors, mirroring the STATUS_META
 // pattern used for campaigns.status in ManageCampaigns.jsx.
@@ -38,12 +39,6 @@ const PROFILE_EXTRAS = {
   quickNote: "I prefer fashion and lifestyle campaigns with 3-4 days of lead time, and I love collaborating on styling multiple looks per shoot.",
 };
 
-const STATS = [
-  { label: "TIKTOK FOLLOWERS", value: "186K", color: appColors.navy },
-  { label: "IG FOLLOWERS", value: "94K", color: appColors.navy },
-  { label: "ENGAGEMENT", value: "5.9%", color: appColors.primary },
-  { label: "AVG VIEWS", value: "310K", color: appColors.navy },
-];
 
 const AGE_DISTRIBUTION = [
   { range: "18-24", pct: 38 },
@@ -116,13 +111,6 @@ function CommentIcon({ color }) {
     </svg>
   );
 }
-function StarIcon() {
-  return (
-    <svg width="18" height="17" viewBox="0 0 18 17" fill="none">
-      <path d="M9 0l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1L3.6 16.3l1.3-6L0.3 6.2l6.1-.6L9 0Z" fill="#f5b400" />
-    </svg>
-  );
-}
 function ShareIcon({ color }) {
   return (
     <svg width="15" height="17" viewBox="0 0 15 17" fill="none">
@@ -167,8 +155,28 @@ function StatCard({ label, value, color }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: "25px", display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ color: appColors.grayLight, fontSize: 12, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase" }}>{label}</span>
-      <span style={{ color, fontSize: 30, fontWeight: 700 }}>{value}</span>
+      {value != null ? (
+        <span style={{ color, fontSize: 30, fontWeight: 700 }}>{value}</span>
+      ) : (
+        <span style={{ color: appColors.grayLight, fontSize: 16, fontWeight: 600 }}>Not yet available</span>
+      )}
     </div>
+  );
+}
+
+// These are self-reported by the creator (Edit Profile), not pulled from a
+// TikTok/Instagram API -- stats_verified just reflects whether someone's
+// spot-checked the number against the real account, not that it's
+// independently confirmed on every view.
+function VerifiedBadge({ verified }) {
+  return verified ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontWeight: 700, fontSize: 12 }}>
+      ✓ Verified
+    </span>
+  ) : (
+    <span style={{ display: "inline-flex", alignItems: "center", color: appColors.grayLight, fontWeight: 600, fontSize: 12 }}>
+      Self-reported
+    </span>
   );
 }
 
@@ -210,14 +218,35 @@ export default function MyProfile() {
   const [bio, setBio] = useState("");
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
+  const [tiktokFollowers, setTiktokFollowers] = useState("");
+  const [tiktokAvgViews, setTiktokAvgViews] = useState("");
+  const [instagramFollowers, setInstagramFollowers] = useState("");
+  const [instagramAvgViews, setInstagramAvgViews] = useState("");
+  const [engagementRate, setEngagementRate] = useState("");
+  // Tracks the stats as last known saved to the DB, so handleSaveProfile can
+  // tell whether the *values* actually changed (not just whether Save was
+  // clicked) -- that's what decides whether stats_verified gets reset.
+  const [seededStats, setSeededStats] = useState(null);
 
-  // Seed the editable bio from the real profile once it loads -- quickNote
-  // has no column yet, so it stays local/mock (see PROFILE_EXTRAS above).
-  // Adjusting state during render (not in an effect) per React's guidance
-  // for "resetting state when a prop/external value changes".
+  // Seed the editable bio/stats from the real profile once it loads --
+  // quickNote has no column yet, so it stays local/mock (see PROFILE_EXTRAS
+  // above). Adjusting state during render (not in an effect) per React's
+  // guidance for "resetting state when a prop/external value changes".
   if (profile && profile.id !== seededProfileId) {
     setSeededProfileId(profile.id);
     setBio(profile.bio || "");
+    setSeededStats({
+      tiktok_followers: profile.tiktok_followers ?? null,
+      tiktok_avg_views: profile.tiktok_avg_views ?? null,
+      instagram_followers: profile.instagram_followers ?? null,
+      instagram_avg_views: profile.instagram_avg_views ?? null,
+      engagement_rate: profile.engagement_rate ?? null,
+    });
+    setTiktokFollowers(profile.tiktok_followers ?? "");
+    setTiktokAvgViews(profile.tiktok_avg_views ?? "");
+    setInstagramFollowers(profile.instagram_followers ?? "");
+    setInstagramAvgViews(profile.instagram_avg_views ?? "");
+    setEngagementRate(profile.engagement_rate ?? "");
   }
 
   const displayName = profile?.name || "Your name";
@@ -323,8 +352,23 @@ export default function MyProfile() {
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
-    await supabase.from("profiles").update({ bio }).eq("id", user.id);
+    const newStats = {
+      tiktok_followers: tiktokFollowers === "" ? null : Number(tiktokFollowers),
+      tiktok_avg_views: tiktokAvgViews === "" ? null : Number(tiktokAvgViews),
+      instagram_followers: instagramFollowers === "" ? null : Number(instagramFollowers),
+      instagram_avg_views: instagramAvgViews === "" ? null : Number(instagramAvgViews),
+      engagement_rate: engagementRate === "" ? null : Number(engagementRate),
+    };
+    // A previous verification shouldn't silently carry over to a new,
+    // unverified number -- only reset it if a value actually changed, not
+    // just because Save was clicked (e.g. only the bio was edited).
+    const prevStats = seededStats || {};
+    const statsChanged = Object.keys(newStats).some((key) => newStats[key] !== (prevStats[key] ?? null));
+    const payload = { bio, ...newStats, stats_updated_at: new Date().toISOString() };
+    if (statsChanged) payload.stats_verified = false;
+    await supabase.from("profiles").update(payload).eq("id", user.id);
     await refreshProfile();
+    setSeededStats(newStats);
     setSaving(false);
     setEditModalOpen(false);
     setSavedToast(true);
@@ -420,10 +464,19 @@ export default function MyProfile() {
               </div>
             </div>
 
-            <div className="kollab-my-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              {STATS.map((stat) => (
-                <StatCard key={stat.label} label={stat.label} value={stat.value} color={stat.color} />
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {profile && hasAnyStats(profile) && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <VerifiedBadge verified={!!profile.stats_verified} />
+                </div>
+              )}
+              <div className="kollab-my-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
+                <StatCard label="TIKTOK FOLLOWERS" value={formatCount(profile?.tiktok_followers)} color={appColors.navy} />
+                <StatCard label="TIKTOK AVG VIEWS" value={formatCount(profile?.tiktok_avg_views)} color={appColors.navy} />
+                <StatCard label="IG FOLLOWERS" value={formatCount(profile?.instagram_followers)} color={appColors.navy} />
+                <StatCard label="IG AVG VIEWS" value={formatCount(profile?.instagram_avg_views)} color={appColors.navy} />
+                <StatCard label="ENGAGEMENT" value={formatEngagement(profile?.engagement_rate)} color={appColors.primary} />
+              </div>
             </div>
 
             {/* Invitations -- the creator-side mirror of a brand clicking
@@ -657,6 +710,49 @@ export default function MyProfile() {
                 rows={3}
                 style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
               />
+            </div>
+            <div>
+              <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 2 }}>Your Stats</label>
+              <p style={{ color: appColors.grayLight, fontSize: 12, margin: "0 0 10px 0" }}>
+                Self-reported -- leave a field blank if you'd rather not share it yet. Changing a number here clears its verified status.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ color: appColors.gray, fontSize: 12, display: "block", marginBottom: 4 }}>TikTok Followers</label>
+                  <input
+                    type="number" min="0" value={tiktokFollowers} onChange={(e) => setTiktokFollowers(e.target.value)}
+                    style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ color: appColors.gray, fontSize: 12, display: "block", marginBottom: 4 }}>TikTok Avg. Views</label>
+                  <input
+                    type="number" min="0" value={tiktokAvgViews} onChange={(e) => setTiktokAvgViews(e.target.value)}
+                    style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ color: appColors.gray, fontSize: 12, display: "block", marginBottom: 4 }}>Instagram Followers</label>
+                  <input
+                    type="number" min="0" value={instagramFollowers} onChange={(e) => setInstagramFollowers(e.target.value)}
+                    style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ color: appColors.gray, fontSize: 12, display: "block", marginBottom: 4 }}>Instagram Avg. Views</label>
+                  <input
+                    type="number" min="0" value={instagramAvgViews} onChange={(e) => setInstagramAvgViews(e.target.value)}
+                    style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ color: appColors.gray, fontSize: 12, display: "block", marginBottom: 4 }}>Engagement Rate (%)</label>
+                  <input
+                    type="number" min="0" max="100" step="0.1" value={engagementRate} onChange={(e) => setEngagementRate(e.target.value)}
+                    style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
             </div>
             <button type="button" onClick={handleSaveProfile} disabled={saving} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, color: "white", fontSize: 14, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
               {saving ? "Saving…" : "Save Changes"}
