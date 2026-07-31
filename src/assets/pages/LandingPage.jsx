@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Footer from "../components/Footer";
 import MarketingNavBar from "../components/MarketingNavBar";
+import AvatarImage from "../components/AvatarImage";
 import { supabase } from "../../supabaseClient";
 
 const colors = {
@@ -243,8 +244,8 @@ function FeaturedKolRow({ kol, tint }) {
   const niches = kol.niche || [];
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center", width: "100%" }}>
-      <div style={{ borderRadius: "50%", background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 56, height: 56, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1 }}>
-        {kol.name?.charAt(0).toUpperCase()}
+      <div style={{ borderRadius: "50%", background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 56, height: 56, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1, overflow: "hidden" }}>
+        <AvatarImage url={kol.avatar_url} size="100%" radius="50%" fallback={kol.name?.charAt(0).toUpperCase()} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{kol.handle || kol.name}</p>
@@ -258,8 +259,8 @@ function BrandRow({ brand, tint }) {
   const displayName = brand.company_name || brand.name;
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center", width: "100%" }}>
-      <div style={{ borderRadius: 12, background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 48, height: 48, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1 }}>
-        {displayName?.charAt(0).toUpperCase()}
+      <div style={{ borderRadius: 12, background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 48, height: 48, fontWeight: 700, color: colors.navy, textAlign: "center", lineHeight: 1, overflow: "hidden" }}>
+        <AvatarImage url={brand.avatar_url} size="100%" radius={12} fallback={displayName?.charAt(0).toUpperCase()} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 700, color: colors.navy, fontSize: 14, letterSpacing: 0.28, margin: 0 }}>{displayName}</p>
@@ -279,8 +280,8 @@ export default function LandingPage() {
     let active = true;
     (async () => {
       const [{ data: creatorRows }, { data: brandRows }] = await Promise.all([
-        supabase.from("profiles").select("id, name, handle, niche").eq("role", "creator").order("created_at", { ascending: false }).limit(3),
-        supabase.from("profiles").select("id, name, company_name, industry").eq("role", "brand").order("created_at", { ascending: false }).limit(3),
+        supabase.from("profiles").select("id, name, handle, niche, avatar_url").eq("role", "creator").order("created_at", { ascending: false }).limit(3),
+        supabase.from("profiles").select("id, name, company_name, industry, avatar_url").eq("role", "brand").order("created_at", { ascending: false }).limit(3),
       ]);
       if (!active) return;
       setFeaturedCreators(creatorRows ?? []);

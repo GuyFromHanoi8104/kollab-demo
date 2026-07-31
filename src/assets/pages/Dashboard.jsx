@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import AvatarImage from "../components/AvatarImage";
 import Footer from "../components/Footer";
 import ReviewApplicationModal from "../components/ReviewApplicationModal";
 import { useAuth } from "../context/useAuth";
@@ -120,8 +121,8 @@ function CreatorCard({ creator }) {
 function ApplicationCard({ app, onReview, saved, onToggleSave }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", flex: 1, minWidth: 0, padding: 24, display: "flex", gap: 16, alignItems: "center", boxSizing: "border-box" }}>
-      <div style={{ background: "#e2e8f0", borderRadius: 16, width: 80, height: 80, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontWeight: 700, color: appColors.grayLight, fontSize: 24 }}>{app.initial}</span>
+      <div style={{ background: "#e2e8f0", borderRadius: 16, width: 80, height: 80, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        <AvatarImage url={app.avatarUrl} size="100%" radius={16} fallback={<span style={{ fontWeight: 700, color: appColors.grayLight, fontSize: 24 }}>{app.initial}</span>} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -193,7 +194,7 @@ export default function Dashboard() {
       const creatorIds = [...new Set(apps.map((a) => a.creator_id))];
       const creatorsById = {};
       if (creatorIds.length > 0) {
-        const { data: profileRows } = await supabase.from("profiles").select("id, name, niche").in("id", creatorIds);
+        const { data: profileRows } = await supabase.from("profiles").select("id, name, niche, avatar_url").in("id", creatorIds);
         (profileRows ?? []).forEach((p) => {
           creatorsById[p.id] = p;
         });
@@ -208,6 +209,7 @@ export default function Dashboard() {
             id: a.id,
             name,
             initial: name.charAt(0).toUpperCase(),
+            avatarUrl: creator?.avatar_url,
             category: creator?.niche?.length ? creator.niche.join(" & ") : "General",
             followers: "—",
             following: "—",

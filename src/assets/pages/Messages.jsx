@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 
@@ -72,7 +73,7 @@ export default function Messages() {
       const convoIds = rows.map((c) => c.id);
 
       const [{ data: profileRows }, { data: campaignRows }, { data: msgRows }] = await Promise.all([
-        otherIds.length ? supabase.from("profiles").select("id, name, role").in("id", otherIds) : Promise.resolve({ data: [] }),
+        otherIds.length ? supabase.from("profiles").select("id, name, role, avatar_url").in("id", otherIds) : Promise.resolve({ data: [] }),
         campaignIds.length ? supabase.from("campaigns").select("id, name").in("id", campaignIds) : Promise.resolve({ data: [] }),
         convoIds.length
           ? supabase
@@ -101,6 +102,7 @@ export default function Messages() {
         return {
           ...c,
           otherName: profileMap[otherId]?.name || "Unknown",
+          otherAvatarUrl: profileMap[otherId]?.avatar_url,
           campaignName: c.campaign_id ? campaignMap[c.campaign_id]?.name ?? null : null,
           unread: (unreadCounts[c.id] || 0) > 0,
           lastMessage: lastMessage ? { fromMe: lastMessage.sender_id === user.id, text: lastMessage.body, time: formatMessageTime(lastMessage.created_at) } : null,
@@ -285,8 +287,8 @@ export default function Messages() {
                     }}
                   >
                     <div style={{ position: "relative", flexShrink: 0 }}>
-                      <div style={{ background: "#e2e8f0", width: 44, height: 44, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight }}>
-                        {convo.otherName.charAt(0).toUpperCase()}
+                      <div style={{ background: "#e2e8f0", width: 44, height: 44, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, overflow: "hidden" }}>
+                        <AvatarImage url={convo.otherAvatarUrl} size="100%" radius={9999} fallback={convo.otherName.charAt(0).toUpperCase()} />
                       </div>
                       {convo.unread && (
                         <span style={{ position: "absolute", top: -1, right: -1, width: 10, height: 10, borderRadius: 9999, background: "#ba1a1a", boxShadow: "0 0 0 2px white" }} />
@@ -326,8 +328,8 @@ export default function Messages() {
                 >
                   <BackIcon color={appColors.navy} />
                 </button>
-                <div style={{ background: "#e2e8f0", width: 40, height: 40, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight }}>
-                  {activeConvo.otherName.charAt(0).toUpperCase()}
+                <div style={{ background: "#e2e8f0", width: 40, height: 40, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, overflow: "hidden" }}>
+                  <AvatarImage url={activeConvo.otherAvatarUrl} size="100%" radius={9999} fallback={activeConvo.otherName.charAt(0).toUpperCase()} />
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 15 }}>{activeConvo.otherName}</div>

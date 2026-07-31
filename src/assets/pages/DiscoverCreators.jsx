@@ -4,6 +4,7 @@ import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
+import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { combinedAvgViews, combinedFollowers, formatCount, formatEngagement, hasAnyStats, sortByStatDesc } from "../../utils/creatorStats";
@@ -90,16 +91,23 @@ function CloseIcon() {
   );
 }
 
-function AvatarSquare({ initial, size = 48, radius = 12 }) {
+function AvatarSquare({ initial, size = 48, radius = 12, avatarUrl }) {
   return (
-    <div
-      style={{
-        background: "#e2e8f0", width: size, height: size, borderRadius: radius, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight,
-      }}
-    >
-      {initial}
-    </div>
+    <AvatarImage
+      url={avatarUrl}
+      size={size}
+      radius={radius}
+      fallback={
+        <div
+          style={{
+            background: "#e2e8f0", width: size, height: size, borderRadius: radius, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight,
+          }}
+        >
+          {initial}
+        </div>
+      }
+    />
   );
 }
 
@@ -303,7 +311,7 @@ export default function DiscoverCreators() {
         if (active) setRecentlyViewed([]);
         return;
       }
-      const { data: profileRows } = await supabase.from("profiles").select("id, name").in("id", ids).eq("role", "creator");
+      const { data: profileRows } = await supabase.from("profiles").select("id, name, avatar_url").in("id", ids).eq("role", "creator");
       const profilesById = {};
       (profileRows ?? []).forEach((p) => {
         profilesById[p.id] = p;
@@ -314,6 +322,7 @@ export default function DiscoverCreators() {
         .map((r) => ({
           id: r.viewed_profile_id,
           name: profilesById[r.viewed_profile_id].name,
+          avatarUrl: profilesById[r.viewed_profile_id].avatar_url,
           time: formatRelativeTime(r.viewed_at),
         }));
       if (active) setRecentlyViewed(merged);
@@ -537,7 +546,7 @@ export default function DiscoverCreators() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {recentlyViewed.map((item) => (
                       <Link key={item.id} to={`/creator/${item.id}`} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, textDecoration: "none" }}>
-                        <AvatarSquare initial={item.name.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <AvatarSquare initial={item.name.charAt(0).toUpperCase()} size={48} radius={12} avatarUrl={item.avatarUrl} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.name}</div>
                           <div style={{ color: appColors.gray, fontSize: 11 }}>{item.time}</div>
@@ -557,7 +566,7 @@ export default function DiscoverCreators() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {savedCreators.slice(0, 5).map((c) => (
                       <Link key={c.id} to={`/creator/${c.id}`} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, textDecoration: "none" }}>
-                        <AvatarSquare initial={c.name?.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <AvatarSquare initial={c.name?.charAt(0).toUpperCase()} size={48} radius={12} avatarUrl={c.avatar_url} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</div>
                         </div>
@@ -606,8 +615,8 @@ export default function DiscoverCreators() {
               <div style={{ display: "flex" }}>
                 {comparedCreators.slice(0, 3).map((c, i) => (
                   <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -16 }}>
-                    <div style={{ background: "#e2e8f0", border: "4px solid white", borderRadius: 9999, width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)" }}>
-                      {c.name?.charAt(0).toUpperCase()}
+                    <div style={{ background: "#e2e8f0", border: "4px solid white", borderRadius: 9999, width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)", overflow: "hidden" }}>
+                      <AvatarImage url={c.avatar_url} size="100%" radius={9999} fallback={c.name?.charAt(0).toUpperCase()} />
                     </div>
                   </div>
                 ))}
@@ -639,7 +648,9 @@ export default function DiscoverCreators() {
               {comparedCreators.map((c) => (
                 <div key={c.id} style={{ border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <div style={{ background: "#e2e8f0", borderRadius: 9999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, flexShrink: 0 }}>{c.name?.charAt(0).toUpperCase()}</div>
+                    <div style={{ background: "#e2e8f0", borderRadius: 9999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, flexShrink: 0, overflow: "hidden" }}>
+                      <AvatarImage url={c.avatar_url} size="100%" radius={9999} fallback={c.name?.charAt(0).toUpperCase()} />
+                    </div>
                     <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</div>
                   </div>
                   {hasAnyStats(c) && <VerifiedBadge verified={!!c.stats_verified} />}

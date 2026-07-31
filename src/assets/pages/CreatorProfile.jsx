@@ -7,6 +7,7 @@ import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { formatVND } from "../../utils/currency";
 import { combinedFollowers, formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
+import AvatarImage from "../components/AvatarImage";
 
 
 const SIMILAR_CREATORS = [
@@ -92,11 +93,18 @@ function EyeIcon({ color }) {
   );
 }
 
-function AvatarPlaceholder({ size, radius, label }) {
+function AvatarPlaceholder({ size, radius, label, avatarUrl }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: radius, background: "linear-gradient(135deg, #e5eeff, #c7d7ff)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: size / 3, flexShrink: 0 }}>
-      {label}
-    </div>
+    <AvatarImage
+      url={avatarUrl}
+      size={size}
+      radius={radius}
+      fallback={
+        <div style={{ width: size, height: size, borderRadius: radius, background: "linear-gradient(135deg, #e5eeff, #c7d7ff)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: size / 3, flexShrink: 0 }}>
+          {label}
+        </div>
+      }
+    />
   );
 }
 
@@ -214,7 +222,7 @@ function InviteModal({ creator, onClose }) {
             </div>
 
             <div style={{ background: appColors.primaryLighter, borderRadius: 16, padding: 16, display: "flex", gap: 12, alignItems: "center" }}>
-              <AvatarPlaceholder size={48} radius={9999} label={creator.name?.charAt(0).toUpperCase()} />
+              <AvatarPlaceholder size={48} radius={9999} label={creator.name?.charAt(0).toUpperCase()} avatarUrl={creator.stats?.avatar_url} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{creator.name} {creator.handle}</div>
                 <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
@@ -504,7 +512,7 @@ export default function CreatorProfile() {
               <div className="kollab-creator-profile-hero" style={{ display: "flex", gap: 32 }}>
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <div style={{ border: `4px solid ${appColors.bg}`, borderRadius: 24, boxShadow: "0px 10px 15px -3px rgba(0,0,0,0.1)" }}>
-                    <AvatarPlaceholder size={160} radius={20} label={displayName.charAt(0).toUpperCase()} />
+                    <AvatarPlaceholder size={160} radius={20} label={displayName.charAt(0).toUpperCase()} avatarUrl={profile.avatar_url} />
                   </div>
                   <div style={{ position: "absolute", bottom: -8, right: -8, background: appColors.primary, border: "4px solid white", borderRadius: 9999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <VerifiedIcon />

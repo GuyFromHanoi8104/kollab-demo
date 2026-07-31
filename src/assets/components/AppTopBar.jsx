@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { appColors } from "./appColors";
+import AvatarImage from "./AvatarImage";
 import { useAuth } from "../context/useAuth";
 
 function BellIcon({ color }) {
@@ -103,8 +104,8 @@ export default function AppTopBar({ left }) {
             <span style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 9999, background: "#ba1a1a", boxShadow: `0 0 0 2px ${appColors.bg}` }} />
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <span style={{ fontWeight: 700, color: appColors.primary, fontSize: 14 }}>{initial}</span>
+            <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+              <AvatarImage url={profile?.avatar_url} size="100%" radius={9999} fallback={<span style={{ fontWeight: 700, color: appColors.primary, fontSize: 14 }}>{initial}</span>} />
             </div>
             <div className="kollab-topbar-profile-text" style={{ textAlign: "right" }}>
               <div style={{ color: appColors.navy, fontSize: 14, fontWeight: 500 }}>{userName}</div>
