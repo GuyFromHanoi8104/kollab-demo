@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import KollabLogo from "./KollabLogo";
 import AvatarImage from "./AvatarImage";
+import FeedbackModal from "./FeedbackModal";
 import { useAuth } from "../context/useAuth";
 
 const colors = {
@@ -18,6 +20,13 @@ function BellIcon({ color }) {
     </svg>
   );
 }
+function FeedbackIcon({ color }) {
+  return (
+    <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
+      <path d="M1 1h14v9H5l-4 3.5V1Z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const NAV_LINKS = [
   { key: "explore", label: "Explore", to: "/" },
@@ -31,6 +40,7 @@ export default function MarketingNavBar({ activeTab }) {
   const profileDestination = role === "creator" ? "/my-profile" : "/dashboard";
   const profileName = profile?.name || "Kollab Demo";
   const profileInitial = profileName.charAt(0).toUpperCase();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   return (
     <div
       className="kollab-marketing-nav"
@@ -89,7 +99,17 @@ export default function MarketingNavBar({ activeTab }) {
           })}
         </nav>
 
-        {isLoggedIn ? (
+        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            style={{ display: "flex", gap: 6, alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            <FeedbackIcon color={colors.gray} />
+            <span style={{ fontWeight: 600, color: colors.gray, fontSize: 14, letterSpacing: 0.28 }}>Feedback</span>
+          </button>
+
+          {isLoggedIn ? (
           <div className="kollab-nav-auth" style={{ display: "flex", gap: 24, alignItems: "center" }}>
             <div style={{ position: "relative", display: "flex" }}>
               <BellIcon color={colors.gray} />
@@ -125,8 +145,11 @@ export default function MarketingNavBar({ activeTab }) {
               Sign Up
             </Link>
           </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }
