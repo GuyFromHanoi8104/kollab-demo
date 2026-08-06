@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import KollabLogo from "./KollabLogo";
 import { appColors } from "./appColors";
+import FeedbackModal from "./FeedbackModal";
 import { useAuth } from "../context/useAuth";
 
 function GridIcon({ color }) {
@@ -81,6 +82,14 @@ function CloseIcon() {
     </svg>
   );
 }
+function FeedbackIcon({ color }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M1 2h16v11H6l-5 4V2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M5 6.5h8M5 9.5h5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const BRAND_NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", to: "/dashboard", Icon: GridIcon },
@@ -133,6 +142,7 @@ export default function AppSidebar({ activeItem, role }) {
   const { isLoggedIn, role: authRole } = useAuth();
   const resolvedRole = role ?? authRole;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const NAV_ITEMS = resolvedRole === "creator" ? CREATOR_NAV_ITEMS : BRAND_NAV_ITEMS;
   const closeMobile = () => setMobileOpen(false);
@@ -227,6 +237,15 @@ export default function AppSidebar({ activeItem, role }) {
         <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
           <NavLink to="/settings" label="Settings" Icon={SettingsIcon} active={activeItem === "settings"} onNavigate={closeMobile} />
 
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", borderRadius: 8, background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+          >
+            <FeedbackIcon color={appColors.gray} />
+            <span style={{ fontWeight: 400, color: appColors.gray, fontSize: 16 }}>Feedback</span>
+          </button>
+
           {/* Static placeholder -- wire to real account/usage data later */}
           {isLoggedIn && (
             <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -239,6 +258,8 @@ export default function AppSidebar({ activeItem, role }) {
           )}
         </div>
       </aside>
+
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
     </>
   );
 }
