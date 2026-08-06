@@ -4,6 +4,7 @@ import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import PremiumAIPanel from "../components/PremiumAIPanel";
+import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 
@@ -77,16 +78,23 @@ function CloseIcon() {
   );
 }
 
-function AvatarSquare({ initial, size = 48, radius = 12 }) {
+function AvatarSquare({ initial, size = 48, radius = 12, avatarUrl }) {
   return (
-    <div
-      style={{
-        background: "#e2e8f0", width: size, height: size, borderRadius: radius, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight,
-      }}
-    >
-      {initial}
-    </div>
+    <AvatarImage
+      url={avatarUrl}
+      size={size}
+      radius={radius}
+      fallback={
+        <div
+          style={{
+            background: "#e2e8f0", width: size, height: size, borderRadius: radius, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight,
+          }}
+        >
+          {initial}
+        </div>
+      }
+    />
   );
 }
 
@@ -96,8 +104,8 @@ function BrandCard({ brand, saved, onToggleSave, onViewProfile }) {
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ background: brand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20 }}>
-              {brand.name?.charAt(0).toUpperCase()}
+            <div style={{ background: brand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20, overflow: "hidden" }}>
+              <AvatarImage url={brand.avatarUrl} size="100%" radius={16} fallback={brand.name?.charAt(0).toUpperCase()} />
             </div>
             <div>
               <div style={{ color: appColors.navy, fontSize: 16, fontWeight: 700 }}>{brand.name}</div>
@@ -184,6 +192,7 @@ export default function DiscoverBrands() {
           name: b.company_name || b.name,
           industry: b.industry,
           location: b.location,
+          avatarUrl: b.avatar_url,
           activeCampaignsNum: counts[b.id] || 0,
           activeCampaigns: String(counts[b.id] || 0),
           logoBg: LOGO_BACKGROUNDS[i % LOGO_BACKGROUNDS.length],
@@ -237,7 +246,7 @@ export default function DiscoverBrands() {
         if (active) setRecentlyViewed([]);
         return;
       }
-      const { data: profileRows } = await supabase.from("profiles").select("id, name, company_name").in("id", ids).eq("role", "brand");
+      const { data: profileRows } = await supabase.from("profiles").select("id, name, company_name, avatar_url").in("id", ids).eq("role", "brand");
       const profilesById = {};
       (profileRows ?? []).forEach((p) => {
         profilesById[p.id] = p;
@@ -248,6 +257,7 @@ export default function DiscoverBrands() {
         .map((r) => ({
           id: r.viewed_profile_id,
           name: profilesById[r.viewed_profile_id].company_name || profilesById[r.viewed_profile_id].name,
+          avatarUrl: profilesById[r.viewed_profile_id].avatar_url,
           time: formatRelativeTime(r.viewed_at),
         }));
       if (active) setRecentlyViewed(merged);
@@ -322,7 +332,7 @@ export default function DiscoverBrands() {
       ).then();
       setRecentlyViewed((prev) => {
         const withoutThis = prev.filter((item) => item.id !== brand.id);
-        return [{ id: brand.id, name: brand.name, time: "Just now" }, ...withoutThis].slice(0, 5);
+        return [{ id: brand.id, name: brand.name, avatarUrl: brand.avatarUrl, time: "Just now" }, ...withoutThis].slice(0, 5);
       });
     }
   };
@@ -462,7 +472,7 @@ export default function DiscoverBrands() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {recentlyViewed.map((item) => (
                       <div key={item.id} onClick={() => handleRecentClick(item.id)} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, cursor: "pointer" }}>
-                        <AvatarSquare initial={item.name?.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <AvatarSquare initial={item.name?.charAt(0).toUpperCase()} size={48} radius={12} avatarUrl={item.avatarUrl} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.name}</div>
                           <div style={{ color: appColors.gray, fontSize: 11 }}>{item.time}</div>
@@ -482,7 +492,7 @@ export default function DiscoverBrands() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {savedBrands.slice(0, 5).map((b) => (
                       <div key={b.id} onClick={() => handleViewProfile(b)} style={{ display: "flex", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, cursor: "pointer" }}>
-                        <AvatarSquare initial={b.name?.charAt(0).toUpperCase()} size={48} radius={12} />
+                        <AvatarSquare initial={b.name?.charAt(0).toUpperCase()} size={48} radius={12} avatarUrl={b.avatarUrl} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{b.name}</div>
                         </div>
@@ -512,8 +522,8 @@ export default function DiscoverBrands() {
           <div style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 440, padding: 32, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)", boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ background: profileBrand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20 }}>
-                  {profileBrand.name?.charAt(0).toUpperCase()}
+                <div style={{ background: profileBrand.logoBg, border: `1px solid ${appColors.border}`, borderRadius: 16, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20, overflow: "hidden" }}>
+                  <AvatarImage url={profileBrand.avatarUrl} size="100%" radius={16} fallback={profileBrand.name?.charAt(0).toUpperCase()} />
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 18 }}>{profileBrand.name}</div>

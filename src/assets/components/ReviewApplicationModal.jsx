@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { appColors } from "./appColors";
+import AvatarImage from "./AvatarImage";
 
 function CloseIcon() {
   return (
@@ -70,8 +71,8 @@ export default function ReviewApplicationModal({ applicant, onClose, onDecision 
             </div>
 
             <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <div style={{ width: 64, height: 64, borderRadius: 16, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, fontSize: 22, flexShrink: 0 }}>
-                {applicant.initial}
+              <div style={{ width: 64, height: 64, borderRadius: 16, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight, fontSize: 22, flexShrink: 0, overflow: "hidden" }}>
+                <AvatarImage url={applicant.avatarUrl} size="100%" radius={16} fallback={applicant.initial} />
               </div>
               <div>
                 <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 18 }}>{applicant.name}</div>

@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { formatVND } from "../../utils/currency";
 import { formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 // applications.status -> display label + colors, mirroring the STATUS_META
 // pattern used for campaigns.status in ManageCampaigns.jsx.
@@ -143,11 +146,18 @@ function ArrowRight({ color }) {
   );
 }
 
-function AvatarPlaceholder({ size, radius, label }) {
+function AvatarPlaceholder({ size, radius, label, avatarUrl }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: radius, background: "linear-gradient(135deg, #e5eeff, #c7d7ff)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: size / 3, flexShrink: 0 }}>
-      {label}
-    </div>
+    <AvatarImage
+      url={avatarUrl}
+      size={size}
+      radius={radius}
+      fallback={
+        <div style={{ width: size, height: size, borderRadius: radius, background: "linear-gradient(135deg, #e5eeff, #c7d7ff)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: size / 3, flexShrink: 0 }}>
+          {label}
+        </div>
+      }
+    />
   );
 }
 
@@ -227,6 +237,10 @@ export default function MyProfile() {
   // tell whether the *values* actually changed (not just whether Save was
   // clicked) -- that's what decides whether stats_verified gets reset.
   const [seededStats, setSeededStats] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarError, setAvatarError] = useState("");
+  const avatarInputRef = useRef(null);
 
   // Seed the editable bio/stats from the real profile once it loads --
   // quickNote has no column yet, so it stays local/mock (see PROFILE_EXTRAS
@@ -349,9 +363,47 @@ export default function MyProfile() {
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    setAvatarError("");
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError("Image must be under 5MB.");
+      return;
+    }
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarError("");
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
+
+    let avatarUrl = profile?.avatar_url ?? null;
+    if (avatarFile) {
+      const path = `${user.id}/${Date.now()}-${avatarFile.name}`;
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile);
+      if (uploadError) {
+        setSaving(false);
+        setAvatarError("Couldn't upload that photo. Please try again.");
+        return;
+      }
+      const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      avatarUrl = publicUrlData.publicUrl;
+    }
+
     const newStats = {
       tiktok_followers: tiktokFollowers === "" ? null : Number(tiktokFollowers),
       tiktok_avg_views: tiktokAvgViews === "" ? null : Number(tiktokAvgViews),
@@ -364,12 +416,14 @@ export default function MyProfile() {
     // just because Save was clicked (e.g. only the bio was edited).
     const prevStats = seededStats || {};
     const statsChanged = Object.keys(newStats).some((key) => newStats[key] !== (prevStats[key] ?? null));
-    const payload = { bio, ...newStats, stats_updated_at: new Date().toISOString() };
+    const payload = { bio, avatar_url: avatarUrl, ...newStats, stats_updated_at: new Date().toISOString() };
     if (statsChanged) payload.stats_verified = false;
     await supabase.from("profiles").update(payload).eq("id", user.id);
     await refreshProfile();
     setSeededStats(newStats);
     setSaving(false);
+    setAvatarFile(null);
+    setAvatarPreview(null);
     setEditModalOpen(false);
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2500);
@@ -435,7 +489,7 @@ export default function MyProfile() {
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 33, boxShadow: "0px 20px 40px -10px rgba(79,124,255,0.08)" }}>
               <div className="kollab-my-profile-hero" style={{ display: "flex", gap: 32 }}>
-                <AvatarPlaceholder size={160} radius={20} label={displayName.charAt(0).toUpperCase()} />
+                <AvatarPlaceholder size={160} radius={20} label={displayName.charAt(0).toUpperCase()} avatarUrl={profile?.avatar_url} />
 
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
@@ -685,13 +739,31 @@ export default function MyProfile() {
 
       {editModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div onClick={() => setEditModalOpen(false)} style={{ position: "absolute", inset: 0, background: appColors.navy, opacity: 0.45 }} />
+          <div onClick={closeEditModal} style={{ position: "absolute", inset: 0, background: appColors.navy, opacity: 0.45 }} />
           <div className="kollab-my-profile-edit-modal" style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 480, padding: 32, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)", maxHeight: "85vh", overflowY: "auto", boxSizing: "border-box" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 18 }}>Edit Profile</div>
-              <button type="button" onClick={() => setEditModalOpen(false)} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <button type="button" onClick={closeEditModal} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                 <CloseIcon />
               </button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="" style={{ width: 72, height: 72, borderRadius: 9999, objectFit: "cover", flexShrink: 0 }} />
+              ) : (
+                <AvatarPlaceholder size={72} radius={9999} label={displayName.charAt(0).toUpperCase()} avatarUrl={profile?.avatar_url} />
+              )}
+              <div>
+                <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} style={{ display: "none" }} />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "8px 16px", fontWeight: 600, color: appColors.navy, fontSize: 13, cursor: "pointer" }}
+                >
+                  Change Photo
+                </button>
+                {avatarError && <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginTop: 6 }}>{avatarError}</div>}
+              </div>
             </div>
             <div>
               <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Bio</label>
