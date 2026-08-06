@@ -179,12 +179,17 @@ function CreatorCard({ creator, compared, onToggleCompare, saved, onToggleSave }
 
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-          <div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span style={{ color: appColors.navy, fontSize: 16 }}>{creator.name}</span>
-              <VerifiedIcon />
+          <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 9999, background: "#e2e8f0", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.grayLight }}>
+              <AvatarImage url={creator.avatar_url} size="100%" radius={9999} fallback={creator.name?.charAt(0).toUpperCase()} />
             </div>
-            <div style={{ color: appColors.gray, fontSize: 14, marginTop: 4 }}>{creator.handle || "—"}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ color: appColors.navy, fontSize: 16 }}>{creator.name}</span>
+                <VerifiedIcon />
+              </div>
+              <div style={{ color: appColors.gray, fontSize: 14, marginTop: 4 }}>{creator.handle || "—"}</div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             {niches.map((tag) => (
