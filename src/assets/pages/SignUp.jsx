@@ -213,6 +213,7 @@ export default function SignUp() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [emailExists, setEmailExists] = useState(false);
   const navigate = useNavigate();
 
   const subtext = role ? ROLE_SUBTEXT[role] : ROLE_SUBTEXT.none;
@@ -224,6 +225,7 @@ export default function SignUp() {
     e.preventDefault();
     if (!role) return; // submit is disabled until a role is picked, but guard anyway
     setError("");
+    setEmailExists(false);
     setSubmitting(true);
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -233,6 +235,16 @@ export default function SignUp() {
     setSubmitting(false);
     if (signUpError) {
       setError(signUpError.message);
+      return;
+    }
+    // With email confirmation required, Supabase deliberately returns a
+    // success-shaped response (no error, no session) when the email is
+    // already registered too -- otherwise the response itself would leak
+    // which emails have accounts. An empty `identities` array is the one
+    // reliable signal that this "success" is actually an existing user,
+    // not a genuinely new signup pending confirmation.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      setEmailExists(true);
       return;
     }
     // If email confirmation is required, Supabase returns no session yet.
@@ -383,6 +395,11 @@ export default function SignUp() {
                   </p>
                 </div>
 
+                {emailExists && (
+                  <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>
+                    An account with this email already exists. <Link to="/login" style={{ color: colors.blueDark, textDecoration: "underline" }}>Log in instead</Link>
+                  </div>
+                )}
                 {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}
 
                 <button
