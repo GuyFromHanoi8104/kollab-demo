@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import TransactionalHeader from "../components/TransactionalHeader";
-import { supabase } from "../../supabaseClient";
+import { setRememberMe, supabase } from "../../supabaseClient";
 
 const colors = {
   navy: "#191c1e",
@@ -237,6 +237,13 @@ export default function SignUp() {
     if (!role) return; // submit is disabled until a role is picked, but guard anyway
     setError("");
     setEmailExists(false);
+
+    // There's no "Remember Me" checkbox on this form -- signing up and
+    // immediately getting logged out on tab close would be a strange first
+    // experience, so this always behaves like it was checked. Also guards
+    // against a leftover "unchecked" preference from an earlier login in
+    // this same browser applying to an unrelated fresh signup.
+    setRememberMe(true);
 
     // Client-side throttle on resubmitting the same email -- covers both a
     // genuinely-new signup that just succeeded a moment ago, and a retry on
