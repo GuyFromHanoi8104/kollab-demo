@@ -22,6 +22,17 @@ const ROLE_SUBTEXT = {
   brand: "Find creators. tiny changes. huge usability improvements",
 };
 
+const RESEND_COOLDOWN_MS = 60_000;
+const resendKey = (email) => `kollab_resend_${email.trim().toLowerCase()}`;
+
+function resendCooldownRemainingMs(email) {
+  const last = Number(localStorage.getItem(resendKey(email)) || 0);
+  return Math.max(0, RESEND_COOLDOWN_MS - (Date.now() - last));
+}
+function markResendSent(email) {
+  localStorage.setItem(resendKey(email), String(Date.now()));
+}
+
 function CreatorIcon({ color }) {
   return (
     <svg width="19" height="18" viewBox="0 0 19 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -232,21 +243,46 @@ export default function SignUp() {
       password,
       options: { data: { role, name } },
     });
-    setSubmitting(false);
     if (signUpError) {
+      setSubmitting(false);
       setError(signUpError.message);
       return;
     }
     // With email confirmation required, Supabase deliberately returns a
     // success-shaped response (no error, no session) when the email is
     // already registered too -- otherwise the response itself would leak
-    // which emails have accounts. An empty `identities` array is the one
-    // reliable signal that this "success" is actually an existing user,
-    // not a genuinely new signup pending confirmation.
+    // which emails have accounts. An empty `identities` array is the
+    // signal that this "success" is actually an existing user rather than
+    // a genuinely new signup -- but that alone doesn't say whether the
+    // existing account ever got confirmed, and a signup retry on a
+    // not-yet-confirmed account should be treated as a normal resend, not
+    // a duplicate.
     if (data.user && data.user.identities && data.user.identities.length === 0) {
-      setEmailExists(true);
+      const cooldownMs = resendCooldownRemainingMs(email);
+      if (cooldownMs > 0) {
+        setSubmitting(false);
+        setError(`Please wait ${Math.ceil(cooldownMs / 1000)}s before requesting another confirmation email.`);
+        return;
+      }
+      // resend() itself is the reliable confirmation-status signal: it
+      // happily resends (no error) for an account that's never been
+      // confirmed, but returns a distinct "already confirmed" error for
+      // one that has -- exactly the distinction needed here.
+      const { error: resendError } = await supabase.auth.resend({ type: "signup", email });
+      setSubmitting(false);
+      if (resendError) {
+        if (/already confirmed|confirmed already/i.test(resendError.message)) {
+          setEmailExists(true);
+        } else {
+          setError(resendError.message);
+        }
+        return;
+      }
+      markResendSent(email);
+      setCheckEmail(true);
       return;
     }
+    setSubmitting(false);
     // If email confirmation is required, Supabase returns no session yet.
     if (!data.session) {
       setCheckEmail(true);
