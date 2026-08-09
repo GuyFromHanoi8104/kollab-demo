@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import KollabLogo from "../components/KollabLogo";
 import TransactionalHeader from "../components/TransactionalHeader";
-import { supabase } from "../../supabaseClient";
+import { setRememberMe as setRememberMePreference, supabase } from "../../supabaseClient";
 
 const colors = {
   navy: "#191c1e",
@@ -160,7 +160,9 @@ function Footer() {
 }
 
 export default function Login() {
-  const [rememberMe, setRememberMe] = useState(false);
+  // Defaults checked -- matches Supabase's own native default (localStorage
+  // persistence) and is the least-surprising starting state for most users.
+  const [rememberMe, setRememberMeChecked] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -174,6 +176,11 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+    // Has to happen before signInWithPassword() -- the storage adapter
+    // reads this preference on every get/set, so it needs to already
+    // reflect the checkbox's state by the time Supabase writes the new
+    // session.
+    setRememberMePreference(rememberMe);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
     if (signInError) {
@@ -306,7 +313,7 @@ export default function Login() {
                 <input
                   type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  onChange={(e) => setRememberMeChecked(e.target.checked)}
                   style={{ width: 16, height: 16, borderRadius: 4, border: "1px solid #c3c6d7", accentColor: colors.blue }}
                 />
                 <span style={{ color: colors.gray, fontSize: 12, fontWeight: 500 }}>Remember me</span>
