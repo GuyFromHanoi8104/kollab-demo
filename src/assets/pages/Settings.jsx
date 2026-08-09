@@ -187,9 +187,9 @@ function BillingModal({ onClose }) {
   );
 }
 
-function DeleteAccountModal({ onClose, onConfirmed }) {
+function DeleteAccountModal({ onClose, onConfirmed, deleting, error }) {
   const [confirmText, setConfirmText] = useState("");
-  const canDelete = confirmText === "DELETE";
+  const canDelete = confirmText === "DELETE" && !deleting;
 
   return (
     <ModalShell title="Delete Account" onClose={onClose}>
@@ -202,8 +202,9 @@ function DeleteAccountModal({ onClose, onConfirmed }) {
         </label>
         <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} style={fieldStyle} />
       </div>
+      {error && <div style={{ color: "#ba1a1a", fontSize: 13, fontWeight: 600 }}>{error}</div>}
       <div style={{ display: "flex", gap: 12 }}>
-        <button type="button" onClick={onClose} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 0", fontWeight: 600, color: appColors.gray, fontSize: 14, cursor: "pointer" }}>
+        <button type="button" onClick={onClose} disabled={deleting} style={{ flex: 1, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 12, padding: "12px 0", fontWeight: 600, color: appColors.gray, fontSize: 14, cursor: deleting ? "not-allowed" : "pointer" }}>
           Cancel
         </button>
         <button
@@ -215,7 +216,7 @@ function DeleteAccountModal({ onClose, onConfirmed }) {
             fontWeight: 700, color: "white", fontSize: 14, cursor: canDelete ? "pointer" : "not-allowed",
           }}
         >
-          Delete Account
+          {deleting ? "Deleting…" : "Delete Account"}
         </button>
       </div>
     </ModalShell>
@@ -228,6 +229,8 @@ export default function Settings() {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [billingModalOpen, setBillingModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [savedToast, setSavedToast] = useState(false);
 
   const { user, profile, role, signOut, refreshProfile } = useAuth();
@@ -289,7 +292,21 @@ export default function Settings() {
     setTimeout(() => setSavedToast(false), 2500);
   };
 
+  // The actual deletion has to happen server-side (auth.admin.deleteUser
+  // needs the service_role key, which can never reach the browser) -- this
+  // just calls the delete-account Edge Function, which verifies the
+  // caller's JWT and only ever deletes that same verified user, never an
+  // id from the request. profiles and everything referencing it cascade
+  // automatically from the auth.users delete.
   const handleAccountDeleted = async () => {
+    setDeleteError("");
+    setDeleting(true);
+    const { error } = await supabase.functions.invoke("delete-account");
+    setDeleting(false);
+    if (error) {
+      setDeleteError("Couldn't delete your account. Please try again.");
+      return;
+    }
     setDeleteModalOpen(false);
     await signOut();
     navigate("/");
@@ -407,7 +424,17 @@ export default function Settings() {
       {upgradeModalOpen && <UpgradeModal onClose={() => setUpgradeModalOpen(false)} />}
       {passwordModalOpen && <ChangePasswordModal onClose={() => setPasswordModalOpen(false)} />}
       {billingModalOpen && <BillingModal onClose={() => setBillingModalOpen(false)} />}
-      {deleteModalOpen && <DeleteAccountModal onClose={() => setDeleteModalOpen(false)} onConfirmed={handleAccountDeleted} />}
+      {deleteModalOpen && (
+        <DeleteAccountModal
+          onClose={() => {
+            setDeleteModalOpen(false);
+            setDeleteError("");
+          }}
+          onConfirmed={handleAccountDeleted}
+          deleting={deleting}
+          error={deleteError}
+        />
+      )}
     </div>
   );
 }
