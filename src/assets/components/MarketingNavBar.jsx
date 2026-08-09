@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import KollabLogo from "./KollabLogo";
 import AvatarImage from "./AvatarImage";
 import FeedbackModal from "./FeedbackModal";
+import NotificationBell from "./NotificationBell";
 import { useAuth } from "../context/useAuth";
 
 const colors = {
@@ -12,14 +13,6 @@ const colors = {
   blueDark: "#004ac6",
 };
 
-function BellIcon({ color }) {
-  return (
-    <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-      <path d="M8 1c-3 0-5 2.2-5 5.5v3.7L1 13h14l-2-2.8V6.5C13 3.2 11 1 8 1Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M6 16a2 2 0 0 0 4 0" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
 function FeedbackIcon({ color }) {
   return (
     <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
@@ -136,10 +129,7 @@ export default function MarketingNavBar({ activeTab }) {
 
           {isLoggedIn ? (
           <div className="kollab-nav-auth" style={{ display: "flex", gap: 24, alignItems: "center" }}>
-            <div style={{ position: "relative", display: "flex" }}>
-              <BellIcon color={colors.gray} />
-              <span style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 9999, background: "#ba1a1a", boxShadow: "0 0 0 2px #f8f9ff" }} />
-            </div>
+            <NotificationBell iconColor={colors.gray} badgeRingColor="#f8f9ff" />
             <Link to={profileDestination} style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none" }}>
               <div style={{ background: "#dce1ff", borderRadius: 9999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
                 <AvatarImage url={profile?.avatar_url} size="100%" radius={9999} fallback={<span style={{ fontWeight: 700, color: "#1550d3", fontSize: 14 }}>{profileInitial}</span>} />
