@@ -69,12 +69,36 @@ export default function MarketingNavBar({ activeTab }) {
           .kollab-marketing-nav .kollab-nav-auth {
             gap: 12px !important;
           }
+          .kollab-marketing-nav .kollab-nav-right {
+            gap: 12px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .kollab-marketing-nav .kollab-nav-inner {
+            padding: 14px 16px !important;
+          }
+          .kollab-marketing-nav .kollab-nav-wordmark {
+            font-size: 20px !important;
+          }
+          .kollab-marketing-nav .kollab-nav-right {
+            gap: 8px !important;
+          }
+          .kollab-marketing-nav .kollab-nav-auth {
+            gap: 8px !important;
+          }
+          .kollab-marketing-nav .kollab-nav-feedback-label {
+            display: none !important;
+          }
+          .kollab-marketing-nav .kollab-nav-signup {
+            white-space: nowrap !important;
+            padding: 10px 16px !important;
+          }
         }
       `}</style>
       <div className="kollab-nav-inner" style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 40px" }}>
         <Link to="/" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none" }}>
           <KollabLogo size={36} />
-          <span style={{ fontWeight: 800, color: colors.navy, fontSize: 24, letterSpacing: -0.6 }}>Kollab</span>
+          <span className="kollab-nav-wordmark" style={{ fontWeight: 800, color: colors.navy, fontSize: 24, letterSpacing: -0.6 }}>Kollab</span>
         </Link>
         <nav className="kollab-nav-links" style={{ display: "flex", gap: 40, alignItems: "center" }}>
           {NAV_LINKS.map((link) => {
@@ -99,14 +123,15 @@ export default function MarketingNavBar({ activeTab }) {
           })}
         </nav>
 
-        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+        <div className="kollab-nav-right" style={{ display: "flex", gap: 24, alignItems: "center" }}>
           <button
             type="button"
             onClick={() => setFeedbackOpen(true)}
+            aria-label="Feedback"
             style={{ display: "flex", gap: 6, alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
           >
             <FeedbackIcon color={colors.gray} />
-            <span style={{ fontWeight: 600, color: colors.gray, fontSize: 14, letterSpacing: 0.28 }}>Feedback</span>
+            <span className="kollab-nav-feedback-label" style={{ fontWeight: 600, color: colors.gray, fontSize: 14, letterSpacing: 0.28 }}>Feedback</span>
           </button>
 
           {isLoggedIn ? (
@@ -130,6 +155,7 @@ export default function MarketingNavBar({ activeTab }) {
             <Link to="/login" style={{ fontWeight: 600, color: colors.gray, fontSize: 14, letterSpacing: 0.28, textDecoration: "none" }}>Login</Link>
             <Link
               to="/signup"
+              className="kollab-nav-signup"
               style={{
                 background: colors.blue,
                 borderRadius: 9999,
