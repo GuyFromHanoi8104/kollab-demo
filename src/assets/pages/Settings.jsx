@@ -33,6 +33,15 @@ function CheckCircleIcon() {
   );
 }
 
+// weeklyDigest/marketingEmails have no real column -- there's no periodic/
+// promotional email feature to gate yet, so those two stay local-only.
+// newApplications/campaignUpdates map to real profiles columns that the
+// notification-creating DB triggers now check before inserting.
+const NOTIFICATION_DB_COLUMNS = {
+  newApplications: "notify_new_applications",
+  campaignUpdates: "notify_campaign_updates",
+};
+
 const fieldStyle = {
   width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10,
   padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box",
@@ -83,14 +92,18 @@ function TextField({ label, value, onChange, type = "text", disabled = false }) 
   );
 }
 
-function ToggleRow({ label, description, checked, onChange }) {
+function ToggleRow({ label, description, checked, onChange, saved, error }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
       <div>
         <div style={{ fontWeight: 600, color: appColors.navy, fontSize: 14 }}>{label}</div>
         <div style={{ color: appColors.grayLight, fontSize: 13 }}>{description}</div>
+        {error && <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginTop: 4 }}>{error}</div>}
       </div>
-      <Toggle checked={checked} onChange={onChange} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {saved && <CheckCircleIcon />}
+        <Toggle checked={checked} onChange={onChange} />
+      </div>
     </div>
   );
 }
@@ -248,6 +261,14 @@ export default function Settings() {
   const [location, setLocation] = useState("");
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [notifications, setNotifications] = useState({
+    newApplications: true,
+    campaignUpdates: true,
+    weeklyDigest: false,
+    marketingEmails: false,
+  });
+  const [notifSavedKey, setNotifSavedKey] = useState(null);
+  const [notifErrorKey, setNotifErrorKey] = useState(null);
 
   // Adjusting state during render (not in an effect) per React's guidance
   // for "resetting state when a prop/external value changes".
@@ -259,16 +280,32 @@ export default function Settings() {
     setWebsite(profile.website || "");
     setHandle(profile.handle || "");
     setLocation(profile.location || "");
+    setNotifications((prev) => ({
+      ...prev,
+      newApplications: profile.notify_new_applications ?? true,
+      campaignUpdates: profile.notify_campaign_updates ?? true,
+    }));
   }
 
-  const [notifications, setNotifications] = useState({
-    newApplications: true,
-    campaignUpdates: true,
-    weeklyDigest: false,
-    marketingEmails: false,
-  });
-  const toggleNotification = (key) => {
-    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
+  // Toggles persist immediately, not on the separate "Save Changes" button
+  // below (that one's still just for the text fields). Optimistic update,
+  // reverted if the write fails.
+  const toggleNotification = async (key) => {
+    const nextValue = !notifications[key];
+    setNotifications((prev) => ({ ...prev, [key]: nextValue }));
+
+    const column = NOTIFICATION_DB_COLUMNS[key];
+    if (!column || !user) return;
+
+    setNotifErrorKey(null);
+    const { error } = await supabase.from("profiles").update({ [column]: nextValue }).eq("id", user.id);
+    if (error) {
+      setNotifications((prev) => ({ ...prev, [key]: !nextValue }));
+      setNotifErrorKey(key);
+      return;
+    }
+    setNotifSavedKey(key);
+    setTimeout(() => setNotifSavedKey((k) => (k === key ? null : k)), 1500);
   };
 
   const [twoFactor, setTwoFactor] = useState(false);
@@ -379,8 +416,22 @@ export default function Settings() {
           </SettingsCard>
 
           <SettingsCard title="Notifications" description="Choose what you want to be notified about.">
-            <ToggleRow label="New Applications" description="Get notified when a creator applies to your campaign" checked={notifications.newApplications} onChange={() => toggleNotification("newApplications")} />
-            <ToggleRow label="Campaign Updates" description="Status changes on your active campaigns" checked={notifications.campaignUpdates} onChange={() => toggleNotification("campaignUpdates")} />
+            <ToggleRow
+              label="New Applications"
+              description="Get notified when a creator applies to your campaign"
+              checked={notifications.newApplications}
+              onChange={() => toggleNotification("newApplications")}
+              saved={notifSavedKey === "newApplications"}
+              error={notifErrorKey === "newApplications" ? "Couldn't save. Try again." : ""}
+            />
+            <ToggleRow
+              label="Campaign Updates"
+              description="Status changes on your active campaigns"
+              checked={notifications.campaignUpdates}
+              onChange={() => toggleNotification("campaignUpdates")}
+              saved={notifSavedKey === "campaignUpdates"}
+              error={notifErrorKey === "campaignUpdates" ? "Couldn't save. Try again." : ""}
+            />
             <ToggleRow label="Weekly Digest" description="A summary of your account activity every Monday" checked={notifications.weeklyDigest} onChange={() => toggleNotification("weeklyDigest")} />
             <ToggleRow label="Marketing Emails" description="Product news, tips, and promotions from Kollab" checked={notifications.marketingEmails} onChange={() => toggleNotification("marketingEmails")} />
           </SettingsCard>
