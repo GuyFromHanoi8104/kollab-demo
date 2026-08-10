@@ -460,7 +460,7 @@ export default function CampaignsBrowse() {
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="Search brands, industries, or keywords..."
-            style={{ width: "100%", height: 64, border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", padding: "0 130px 0 65px", fontSize: 16, color: colors.navy, outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", height: 64, background: "white", colorScheme: "light", border: `1px solid ${colors.border}`, borderRadius: 16, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", padding: "0 130px 0 65px", fontSize: 16, color: colors.navy, outline: "none", boxSizing: "border-box" }}
           />
           <button type="button" className="kollab-campaigns-search-btn" style={{ position: "absolute", right: 8, top: 8, bottom: 8, background: colors.blue, border: "none", borderRadius: 16, padding: "0 32px", fontWeight: 700, color: "white", fontSize: 16, cursor: "pointer" }}>
             Search
