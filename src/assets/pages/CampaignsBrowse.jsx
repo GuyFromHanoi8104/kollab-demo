@@ -63,6 +63,7 @@ function toOpportunityView(campaign, brandsById) {
     tags: campaign.platforms ?? [],
     budget: formatBudget(campaign),
     deadline: formatDeadline(campaign.deadline),
+    deadlineLong: formatDeadline(campaign.deadline, { long: true }),
     urgent: isUrgent(campaign.deadline),
     category: campaign.niche,
     gradient: `linear-gradient(135deg, ${style.bg}, ${style.color})`,
@@ -109,8 +110,15 @@ function ArrowRight({ color }) {
     </svg>
   );
 }
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M2 2l14 14M16 2L2 16" stroke={colors.gray} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, busy, isLoggedIn, role, onRequireLogin }) {
+function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, busy, isLoggedIn, role, onRequireLogin, onViewDetails }) {
   const isBrand = isLoggedIn && role === "brand";
 
   const handleApplyClick = () => {
@@ -181,7 +189,92 @@ function OpportunityCard({ opp, saved, onToggleSave, applied, onApply, busy, isL
           >
             {applied ? "Applied ✓" : isBrand ? "Creators Only" : busy ? "Applying…" : "Apply"}
           </button>
+          <button
+            type="button"
+            onClick={() => onViewDetails(opp)}
+            style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 16, padding: "16px 24px", fontWeight: 700, color: colors.navy, fontSize: 16, cursor: "pointer" }}
+          >
+            Details
+          </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Shared by both click targets on this page (the grid's OpportunityCard and
+// the Featured Opportunity section) -- same visual pattern as Discover
+// Brands' Brand Profile modal (rounded-24 card, dim backdrop, top-right
+// close button), reusing this page's own marketing palette. Apply here
+// calls the exact same onApply/onRequireLogin passed down from
+// CampaignsBrowse rather than a separate copy, so "Applied ✓" and the
+// role-gating stay in sync with the rest of the page.
+function CampaignDetailsModal({ opp, applied, onApply, busy, isBrand, isLoggedIn, onRequireLogin, onClose }) {
+  const handleApplyClick = () => {
+    if (applied || isBrand || busy) return;
+    if (!isLoggedIn) {
+      onRequireLogin();
+      return;
+    }
+    onApply(opp.id);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: colors.navy, opacity: 0.45 }} />
+      <div style={{ position: "relative", background: "white", borderRadius: 24, width: "100%", maxWidth: 560, padding: 40, display: "flex", flexDirection: "column", gap: 24, boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)", maxHeight: "85vh", overflowY: "auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ background: opp.logoBg, border: `1px solid ${colors.border}`, borderRadius: 16, width: 48, height: 48, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: opp.logoColor, fontSize: 18 }}>
+              {opp.logoInitial}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, color: colors.navy, fontSize: 15 }}>{opp.brand}</div>
+              <span style={{ display: "inline-block", marginTop: 4, background: "#eff4ff", borderRadius: 8, padding: "3px 10px", fontWeight: 700, color: colors.blue, fontSize: 11 }}>{opp.category}</span>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>
+            <CloseIcon />
+          </button>
+        </div>
+
+        <h2 style={{ fontWeight: 800, color: colors.navy, fontSize: 24, lineHeight: "30px", margin: 0 }}>{opp.title}</h2>
+
+        <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ color: colors.grayLight, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>Budget Range</div>
+            <div style={{ color: colors.navy, fontWeight: 800, fontSize: 18 }}>{opp.budget}</div>
+          </div>
+          <div>
+            <div style={{ color: colors.grayLight, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>Deadline</div>
+            <div style={{ color: opp.urgent ? "#ba1a1a" : colors.navy, fontWeight: 800, fontSize: 18 }}>{opp.deadlineLong}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {opp.tags.map((tag) => (
+            <span key={tag} style={{ background: "#eff4ff", border: "1px solid rgba(195,197,215,0.1)", borderRadius: 8, padding: "5px 11px", fontWeight: 700, color: colors.gray, fontSize: 11 }}>{tag}</span>
+          ))}
+        </div>
+
+        <div>
+          <div style={{ color: colors.grayLight, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Campaign Brief</div>
+          <p style={{ color: colors.gray, fontSize: 14, lineHeight: "24px", margin: 0, whiteSpace: "pre-wrap" }}>{opp.description}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleApplyClick}
+          disabled={applied || isBrand || busy}
+          style={{
+            background: applied ? "#dcfce7" : isBrand ? colors.border : colors.blue, border: "none", borderRadius: 16, padding: "16px 0",
+            fontWeight: 700, color: applied ? "#16a34a" : isBrand ? colors.grayLight : "white", fontSize: 16, cursor: applied || isBrand || busy ? "default" : "pointer",
+            opacity: busy ? 0.7 : 1,
+            transition: "background-color 200ms ease-out, color 200ms ease-out",
+          }}
+        >
+          {applied ? "Applied ✓" : isBrand ? "Creators Only" : busy ? "Applying…" : "Apply"}
+        </button>
       </div>
     </div>
   );
@@ -204,6 +297,7 @@ export default function CampaignsBrowse() {
   const [loading, setLoading] = useState(true);
   const [applyingId, setApplyingId] = useState(null);
   const [applyError, setApplyError] = useState("");
+  const [viewingOpp, setViewingOpp] = useState(null);
 
   // This table's select RLS is public, so this loads for logged-out guests
   // too. Brand names/locations come from a separate profiles query (client-
@@ -434,7 +528,7 @@ export default function CampaignsBrowse() {
                 >
                   {appliedIds.has(featuredView.id) ? "Applied ✓" : isBrand ? "Creators Only" : applyingId === featuredView.id ? "Applying…" : "Apply Now"}
                 </button>
-                <button type="button" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 16, padding: "17px 41px", fontWeight: 700, color: colors.navy, fontSize: 16, cursor: "pointer" }}>View Details</button>
+                <button type="button" onClick={() => setViewingOpp(featuredView)} style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 16, padding: "17px 41px", fontWeight: 700, color: colors.navy, fontSize: 16, cursor: "pointer" }}>View Details</button>
               </div>
             </div>
             <div style={{ flex: 1, position: "relative", background: featuredView.gradient, minHeight: 320 }}>
@@ -495,6 +589,7 @@ export default function CampaignsBrowse() {
                 isLoggedIn={isLoggedIn}
                 role={role}
                 onRequireLogin={handleRequireLogin}
+                onViewDetails={setViewingOpp}
               />
             ))
           ) : (
@@ -529,6 +624,19 @@ export default function CampaignsBrowse() {
       </div>
 
       <Footer />
+
+      {viewingOpp && (
+        <CampaignDetailsModal
+          opp={viewingOpp}
+          applied={appliedIds.has(viewingOpp.id)}
+          busy={applyingId === viewingOpp.id}
+          isBrand={isBrand}
+          isLoggedIn={isLoggedIn}
+          onApply={handleApply}
+          onRequireLogin={handleRequireLogin}
+          onClose={() => setViewingOpp(null)}
+        />
+      )}
     </div>
   );
 }
