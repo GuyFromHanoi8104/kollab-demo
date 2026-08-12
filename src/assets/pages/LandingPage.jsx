@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Footer from "../components/Footer";
 import MarketingNavBar from "../components/MarketingNavBar";
 import AvatarImage from "../components/AvatarImage";
+import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 
 const colors = {
@@ -350,10 +351,19 @@ function HowItWorks() {
 const PAIN_POINTS = [
   "Still scrolling TikTok and Instagram hoping to spot the right creator?",
   "Still negotiating rates across endless DM and email threads?",
-  "Still tracking campaigns in a spreadsheet instead of running them?",
 ];
 
 function PainPoints() {
+  const { isLoggedIn, role } = useAuth();
+  // A signed-in visitor has already "got started" -- send them to the side of
+  // the marketplace they actually use rather than leaving the closing panel
+  // with nothing to act on.
+  const cta = !isLoggedIn
+    ? { to: "/signup", label: "Get started free" }
+    : role === "brand"
+      ? { to: "/discover", label: "Discover creators" }
+      : { to: "/campaigns", label: "Browse campaigns" };
+
   return (
     <section className="kollab-pain" style={{ width: "100%", position: "relative" }}>
       {PAIN_POINTS.map((line, i) => (
@@ -417,14 +427,14 @@ function PainPoints() {
           With Kollab, it all happens in one place.
         </h2>
         <Link
-          to="/signup"
+          to={cta.to}
           style={{
             background: "white", borderRadius: 16, padding: "18px 44px", fontWeight: 700,
             color: colors.blue, fontSize: 16, textDecoration: "none",
             boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.3)",
           }}
         >
-          Get started free
+          {cta.label}
         </Link>
       </div>
     </section>
