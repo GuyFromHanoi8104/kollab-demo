@@ -388,6 +388,20 @@ export default function CampaignsBrowse() {
   const featuredView = featuredCampaign ? toOpportunityView(featuredCampaign, brands) : null;
   const restViews = campaigns.slice(1).map((c) => toOpportunityView(c, brands));
 
+  // Searching covers every campaign, including the featured one. It used to
+  // filter campaigns.slice(1) only, so the featured campaign could never
+  // match -- with a single campaign that meant every search reported "no
+  // matches" while that campaign sat visible directly above the message.
+  const query = searchText.trim().toLowerCase();
+  const searchActive = query.length > 0;
+  const allViews = campaigns.map((c) => toOpportunityView(c, brands));
+  const searchResults = searchActive
+    ? allViews.filter((opp) =>
+        [opp.brand, opp.title, opp.category, opp.description, (opp.tags || []).join(" ")]
+          .some((field) => String(field || "").toLowerCase().includes(query))
+      )
+    : [];
+
   return (
     <div
       className="kollab-campaigns-browse"
@@ -488,7 +502,9 @@ export default function CampaignsBrowse() {
         </div>
       </div>
 
-      {featuredView && (
+      {/* Hidden while searching -- the featured campaign is part of the
+          result set now, so leaving the hero up would show it twice. */}
+      {featuredView && !searchActive && (
         <div style={{ maxWidth: 1280, margin: "48px auto 0 auto", padding: "0 24px" }}>
           <div className="kollab-campaigns-featured-split" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", display: "flex" }}>
             <div className="kollab-campaigns-featured-content" style={{ flex: 1, padding: 56, display: "flex", flexDirection: "column", gap: 24 }}>
@@ -547,12 +563,24 @@ export default function CampaignsBrowse() {
 
       <div className="kollab-campaigns-new-opps-header" style={{ maxWidth: 1280, margin: "56px auto 0 auto", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <h3 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, letterSpacing: -0.75, margin: 0 }}>New Opportunities</h3>
-          <p style={{ color: colors.gray, fontSize: 16, margin: "4px 0 0 0" }}>Freshly posted campaigns tailored for your niche.</p>
+          <h3 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, letterSpacing: -0.75, margin: 0 }}>
+            {searchActive ? `Results for "${searchText.trim()}"` : "New Opportunities"}
+          </h3>
+          <p style={{ color: colors.gray, fontSize: 16, margin: "4px 0 0 0" }}>
+            {searchActive
+              ? `${searchResults.length} campaign${searchResults.length === 1 ? "" : "s"} matched.`
+              : "Freshly posted campaigns tailored for your niche."}
+          </p>
         </div>
-        <button type="button" style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", color: colors.blue, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-          View All <ArrowRight color={colors.blue} />
-        </button>
+        {searchActive ? (
+          <button type="button" onClick={() => setSearchText("")} style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", color: colors.blue, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+            Clear search
+          </button>
+        ) : (
+          <button type="button" style={{ background: "none", border: "none", display: "flex", gap: 8, alignItems: "center", color: colors.blue, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+            View All <ArrowRight color={colors.blue} />
+          </button>
+        )}
       </div>
 
       {applyError && (
@@ -570,15 +598,7 @@ export default function CampaignsBrowse() {
             return <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>No active campaigns right now — check back soon.</div>;
           }
 
-          const query = searchText.trim().toLowerCase();
-          const filteredOpportunities = query
-            ? restViews.filter(
-                (opp) =>
-                  opp.brand.toLowerCase().includes(query) ||
-                  opp.title.toLowerCase().includes(query) ||
-                  opp.category.toLowerCase().includes(query)
-              )
-            : restViews;
+          const filteredOpportunities = searchActive ? searchResults : restViews;
 
           return filteredOpportunities.length > 0 ? (
             filteredOpportunities.map((opp) => (
@@ -598,7 +618,7 @@ export default function CampaignsBrowse() {
             ))
           ) : (
             <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>
-              {query ? `No campaigns match "${searchText}".` : "No additional opportunities right now — check back soon."}
+              {searchActive ? `No campaigns match "${searchText.trim()}".` : "No additional opportunities right now — check back soon."}
             </div>
           );
         })()}
