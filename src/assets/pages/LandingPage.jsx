@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { SEARCH_STATUS, searchProfiles } from "../../utils/searchApi";
 import Footer from "../components/Footer";
 import MarketingNavBar from "../components/MarketingNavBar";
 import AvatarImage from "../components/AvatarImage";
@@ -64,7 +65,93 @@ function SearchModeToggle({ mode, onChange }) {
   );
 }
 
+const DROPDOWN_LIMIT = 4;
+
+function SearchResultRow({ result, onPick }) {
+  const initial = (result.name || "?").charAt(0).toUpperCase();
+  const meta = [(result.niche || []).join(" · "), result.location].filter(Boolean).join(" — ");
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()} // keep focus so blur doesn't close first
+      onClick={() => onPick(result)}
+      style={{
+        display: "flex", gap: 12, alignItems: "center", width: "100%", textAlign: "left",
+        background: "none", border: "none", borderBottom: "1px solid rgba(195,198,215,0.25)",
+        padding: "12px 16px", cursor: "pointer",
+      }}
+    >
+      <span
+        style={{
+          width: 34, height: 34, borderRadius: 9999, flexShrink: 0, background: "#dce1ff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontWeight: 700, color: "#1550d3", fontSize: 14,
+        }}
+      >
+        {initial}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontWeight: 700, color: colors.navy, fontSize: 14 }}>
+          {result.name || "Unnamed"}
+        </span>
+        <span style={{ display: "block", color: "#737686", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {meta || "No niche set yet"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function SearchCard({ mode, onModeChange }) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState(null); // null = no search run yet
+  const [searching, setSearching] = useState(false);
+  const [notice, setNotice] = useState("");
+  const boxRef = useRef(null);
+
+  // Same click-outside approach as NotificationBell rather than a backdrop
+  // element, which would need to out-rank everything else on the page.
+  useEffect(() => {
+    if (results === null && !notice) return;
+    const onDown = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) {
+        setResults(null);
+        setNotice("");
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [results, notice]);
+
+  // Only on Enter or the Search button -- never per keystroke, since each
+  // call embeds the query through OpenAI and costs real money.
+  const runSearch = async () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+
+    // Campaigns are not in the search index (Weaviate holds profiles only),
+    // so this hands the query to the campaigns page's own filter instead of
+    // pretending to semantically search something that isn't indexed.
+    if (mode === "campaigns") {
+      navigate(`/campaigns?q=${encodeURIComponent(trimmed)}`);
+      return;
+    }
+
+    setSearching(true);
+    setNotice("");
+    const { status, results: rows, message } = await searchProfiles(trimmed, "creator", { limit: DROPDOWN_LIMIT });
+    if (status === SEARCH_STATUS.OK) {
+      setResults(rows);
+    } else {
+      setResults(null);
+      setNotice(message);
+    }
+    setSearching(false);
+  };
+
+  const dropdownOpen = searching || !!notice || results !== null;
+
   return (
     <div
       className="kollab-search-card"
@@ -85,44 +172,94 @@ function SearchCard({ mode, onModeChange }) {
     >
       <SearchModeToggle mode={mode} onChange={onModeChange} />
 
-      <div className="kollab-search-row" style={{ display: "flex", gap: 12, width: "100%" }}>
-        <div style={{ position: "relative", flex: 1 }}>
-          <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(115,118,134,0.6)" }}>🔍</span>
-          <input
-            type="text"
-            placeholder="Search by name, category, platform..."
+      <div ref={boxRef} style={{ position: "relative", width: "100%" }}>
+        <div className="kollab-search-row" style={{ display: "flex", gap: 12, width: "100%" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(115,118,134,0.6)" }}>🔍</span>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (!e.target.value.trim()) {
+                  setResults(null);
+                  setNotice("");
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") runSearch();
+                if (e.key === "Escape") { setResults(null); setNotice(""); }
+              }}
+              placeholder={mode === "kols" ? "Search creators by niche, location or keywords..." : "Search campaigns by brand, title or niche..."}
+              style={{
+                background: "rgba(255,255,255,0.8)",
+                colorScheme: "light",
+                borderRadius: 16,
+                boxShadow: "0px 0px 0px 1px rgba(195,198,215,0.3)",
+                width: "100%",
+                padding: "19px 24px 20px 48px",
+                fontSize: 18,
+                color: colors.navy,
+                border: "none",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="kollab-search-button"
+            onClick={runSearch}
+            disabled={searching}
             style={{
-              background: "rgba(255,255,255,0.8)",
+              background: colors.blue,
               borderRadius: 16,
-              boxShadow: "0px 0px 0px 1px rgba(195,198,215,0.3)",
-              width: "100%",
-              padding: "19px 24px 20px 48px",
-              fontSize: 18,
-              color: colors.gray,
+              boxShadow: "0px 10px 15px -3px rgba(37,99,235,0.2), 0px 4px 6px -4px rgba(37,99,235,0.2)",
+              padding: "19.5px 40px 20.5px",
+              fontWeight: 600,
+              color: "white",
+              fontSize: 14,
+              letterSpacing: 0.28,
               border: "none",
-              outline: "none",
-              boxSizing: "border-box",
+              cursor: searching ? "default" : "pointer",
+              opacity: searching ? 0.7 : 1,
+              whiteSpace: "nowrap",
             }}
-          />
+          >
+            {searching ? "Searching…" : "Search"}
+          </button>
         </div>
-        <button
-          type="button"
-          className="kollab-search-button"
-          style={{
-            background: colors.blue,
-            borderRadius: 16,
-            boxShadow: "0px 10px 15px -3px rgba(37,99,235,0.2), 0px 4px 6px -4px rgba(37,99,235,0.2)",
-            padding: "19.5px 40px 20.5px",
-            fontWeight: 600,
-            color: "white",
-            fontSize: 14,
-            letterSpacing: 0.28,
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          Search
-        </button>
+
+        {dropdownOpen && (
+          <div
+            style={{
+              position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, zIndex: 30,
+              background: "white", border: "1px solid rgba(195,198,215,0.4)", borderRadius: 16,
+              boxShadow: "0px 20px 40px -10px rgba(0,0,0,0.18)", overflow: "hidden",
+            }}
+          >
+            {searching ? (
+              <div style={{ padding: 20, textAlign: "center", color: "#737686", fontSize: 14 }}>Searching creators…</div>
+            ) : notice ? (
+              <div style={{ padding: 20, textAlign: "center", color: "#b45309", fontSize: 14, fontWeight: 600 }}>{notice}</div>
+            ) : results && results.length > 0 ? (
+              <>
+                {results.slice(0, DROPDOWN_LIMIT).map((r) => (
+                  <SearchResultRow key={r.profile_id} result={r} onPick={(row) => navigate(`/creator/${row.profile_id}`)} />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => navigate("/discover")}
+                  style={{ display: "block", width: "100%", background: "none", border: "none", padding: "12px 16px", color: colors.blue, fontWeight: 700, fontSize: 13, cursor: "pointer", textAlign: "center" }}
+                >
+                  See all creators →
+                </button>
+              </>
+            ) : (
+              <div style={{ padding: 20, textAlign: "center", color: "#737686", fontSize: 14 }}>No creators matched that search.</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

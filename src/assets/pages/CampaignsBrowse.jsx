@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import MarketingNavBar from "../components/MarketingNavBar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
@@ -283,7 +283,11 @@ function CampaignDetailsModal({ opp, applied, onApply, busy, isBrand, isLoggedIn
 export default function CampaignsBrowse() {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(new Set());
-  const [searchText, setSearchText] = useState("");
+  // Seeded from ?q= so the landing page's "Find Campaigns" can hand its query
+  // over. Campaigns aren't in the Weaviate index, so this feeds the existing
+  // client-side filter below rather than the semantic search API.
+  const [searchParams] = useSearchParams();
+  const [searchText, setSearchText] = useState(searchParams.get("q") || "");
 
   // This was missing entirely -- MarketingNavBar defaults isLoggedIn to
   // false when not passed a prop, so this page always showed the logged-out

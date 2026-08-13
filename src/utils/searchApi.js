@@ -23,13 +23,18 @@ export const SEARCH_STATUS = {
 };
 
 /**
+ * Full result rows: profile_id, name, role, handle, bio, niche, location,
+ * distance. Used where there is no locally loaded row to enrich from -- the
+ * landing page dropdown only needs a name and a niche, and never loaded the
+ * full creator list to begin with.
+ *
  * @param {string} query  Free-text search.
  * @param {"creator"|"brand"} role
- * @returns {Promise<{status: string, ids: string[], message: string}>}
+ * @returns {Promise<{status: string, results: object[], message: string}>}
  */
-export async function searchProfileIds(query, role, { limit = 25 } = {}) {
+export async function searchProfiles(query, role, { limit = 25 } = {}) {
   const trimmed = (query || "").trim();
-  if (!trimmed) return { status: SEARCH_STATUS.OK, ids: [], message: "" };
+  if (!trimmed) return { status: SEARCH_STATUS.OK, results: [], message: "" };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -45,36 +50,41 @@ export async function searchProfileIds(query, role, { limit = 25 } = {}) {
     if (res.status === 429) {
       return {
         status: SEARCH_STATUS.RATE_LIMITED,
-        ids: [],
+        results: [],
         message: "Too many searches in a row. Give it a minute and try again.",
       };
     }
     if (!res.ok) {
       return {
         status: SEARCH_STATUS.UNAVAILABLE,
-        ids: [],
+        results: [],
         message: "Search is unavailable right now — browsing everyone instead.",
       };
     }
 
     const data = await res.json();
-    return {
-      status: SEARCH_STATUS.OK,
-      ids: (data.results || []).map((r) => r.profile_id),
-      message: "",
-    };
+    return { status: SEARCH_STATUS.OK, results: data.results || [], message: "" };
   } catch {
     // Network failure, DNS, CORS rejection, or the 12s abort. Guests should
     // still be able to browse if the search service is down or out of
     // credit, so this is a soft notice rather than an error state.
     return {
       status: SEARCH_STATUS.UNAVAILABLE,
-      ids: [],
+      results: [],
       message: "Search is unavailable right now — browsing everyone instead.",
     };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Ranked IDs only, for callers that already hold the full rows and just need
+ * the ordering (Discover Creators / Discover Brands).
+ */
+export async function searchProfileIds(query, role, opts) {
+  const { status, results, message } = await searchProfiles(query, role, opts);
+  return { status, ids: results.map((r) => r.profile_id), message };
 }
 
 /**
