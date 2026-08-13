@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import { NICHE_STYLES } from "../components/nicheStyles";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
@@ -226,6 +227,8 @@ export default function MyProfile() {
   const [savedToast, setSavedToast] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bio, setBio] = useState("");
+  // Draft copy of profiles.niche (a text[] column) while the modal is open.
+  const [nicheDraft, setNicheDraft] = useState([]);
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
   const [tiktokFollowers, setTiktokFollowers] = useState("");
@@ -249,6 +252,9 @@ export default function MyProfile() {
   if (profile && profile.id !== seededProfileId) {
     setSeededProfileId(profile.id);
     setBio(profile.bio || "");
+    // Guarded rather than defaulted: the column is nullable, and a non-array
+    // value would break every .map()/.some() that reads niche elsewhere.
+    setNicheDraft(Array.isArray(profile.niche) ? profile.niche : []);
     setSeededStats({
       tiktok_followers: profile.tiktok_followers ?? null,
       tiktok_avg_views: profile.tiktok_avg_views ?? null,
@@ -263,9 +269,12 @@ export default function MyProfile() {
     setEngagementRate(profile.engagement_rate ?? "");
   }
 
+  const toggleNiche = (n) =>
+    setNicheDraft((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
+
   const displayName = profile?.name || "Your name";
   const handle = profile?.handle || "@add-your-handle";
-  const tags = profile?.niche?.length ? profile.niche : ["Add your niches"];
+  const tags = Array.isArray(profile?.niche) ? profile.niche : [];
   const location = profile?.location || "Add your location";
 
   // Applications and invitations don't carry the brand/campaign name
@@ -416,7 +425,7 @@ export default function MyProfile() {
     // just because Save was clicked (e.g. only the bio was edited).
     const prevStats = seededStats || {};
     const statsChanged = Object.keys(newStats).some((key) => newStats[key] !== (prevStats[key] ?? null));
-    const payload = { bio, avatar_url: avatarUrl, ...newStats, stats_updated_at: new Date().toISOString() };
+    const payload = { bio, niche: nicheDraft, avatar_url: avatarUrl, ...newStats, stats_updated_at: new Date().toISOString() };
     if (statsChanged) payload.stats_verified = false;
     await supabase.from("profiles").update(payload).eq("id", user.id);
     await refreshProfile();
@@ -495,10 +504,30 @@ export default function MyProfile() {
                   <div>
                     <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 36, letterSpacing: -0.9, margin: 0 }}>{displayName}</h1>
                     <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16, marginTop: 6 }}>{handle}</div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      {tags.map((tag) => (
-                        <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 600, fontSize: 12, borderRadius: 9999, padding: "6px 16px" }}>{tag}</span>
-                      ))}
+                    <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                      {tags.length > 0 ? (
+                        tags.map((tag) => {
+                          const style = NICHE_STYLES[tag];
+                          return (
+                            <span
+                              key={tag}
+                              style={{
+                                background: style?.bg || appColors.primaryLight,
+                                color: style?.color || appColors.primary,
+                                fontWeight: 600, fontSize: 12, borderRadius: 9999, padding: "6px 16px",
+                              }}
+                            >
+                              {tag.charAt(0) + tag.slice(1).toLowerCase()}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        // Muted and italic so an empty state never reads as a
+                        // niche the creator actually picked.
+                        <span style={{ color: appColors.grayLight, fontSize: 13, fontStyle: "italic" }}>
+                          No niches yet — add them in Edit Profile
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -773,6 +802,38 @@ export default function MyProfile() {
                 rows={4}
                 style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
               />
+            </div>
+            <div>
+              <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 2 }}>Niches</label>
+              <p style={{ color: appColors.grayLight, fontSize: 12, margin: "0 0 10px 0" }}>
+                Pick every niche you create content in — brands filter by these when searching for creators.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {/* Same canonical list campaigns use, so a creator's niches and
+                    a campaign's niche are directly comparable. */}
+                {Object.keys(NICHE_STYLES).map((n) => {
+                  const selected = nicheDraft.includes(n);
+                  const style = NICHE_STYLES[n];
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleNiche(n)}
+                      aria-pressed={selected}
+                      style={{
+                        background: selected ? style.bg : "transparent",
+                        color: selected ? style.color : appColors.gray,
+                        border: `1px solid ${selected ? style.color : appColors.border}`,
+                        fontWeight: 600, fontSize: 13, borderRadius: 9999,
+                        padding: "7px 16px", cursor: "pointer",
+                        transition: "background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out",
+                      }}
+                    >
+                      {n.charAt(0) + n.slice(1).toLowerCase()}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>About My Ideal Campaigns</label>
