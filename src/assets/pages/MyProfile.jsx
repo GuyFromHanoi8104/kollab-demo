@@ -6,7 +6,7 @@ import { NICHE_STYLES } from "../components/nicheStyles";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
-import { buildInstagramOAuthUrl } from "../../utils/instagramAuth";
+import { buildInstagramOAuthUrl, isInstagramConfigured } from "../../utils/instagramAuth";
 import { formatVND } from "../../utils/currency";
 import { formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 
@@ -626,8 +626,16 @@ export default function MyProfile() {
                         : "Verify your real follower count automatically instead of reporting it yourself."}
                     </div>
                     {igError && <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginTop: 6 }}>{igError}</div>}
+                    {!igConnected && !isInstagramConfigured() && (
+                      // Better to say so than to send someone to an Instagram
+                      // login page that rejects them after they've typed a
+                      // password.
+                      <div style={{ color: "#b45309", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                        Instagram connection isn't configured yet — VITE_INSTAGRAM_APP_ID is unset.
+                      </div>
+                    )}
                   </div>
-                  {!igConnected && (
+                  {!igConnected && isInstagramConfigured() && (
                     <button
                       type="button"
                       onClick={() => { window.location.href = buildInstagramOAuthUrl(); }}
