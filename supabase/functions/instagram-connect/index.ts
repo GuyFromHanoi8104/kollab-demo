@@ -177,7 +177,10 @@ Deno.serve(async (req) => {
       return jsonResponse(
         {
           needs_page_id: true,
-          error:
+          // Deliberately `message`, not `error`. The browser's error handler
+          // watches for `error`, so putting the explanation there made this
+          // reply look like a failure and swallowed the prompt entirely.
+          message:
             "We couldn't list your Facebook Pages automatically. Enter your Page ID and " +
             "we'll connect it directly.",
         },

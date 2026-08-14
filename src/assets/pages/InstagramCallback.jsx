@@ -43,19 +43,24 @@ export default function InstagramCallback() {
       setMessage(detail || "Could not connect your Instagram account.");
       return;
     }
-    if (data?.error) {
-      setStatus("error");
-      setMessage(data.error);
-      return;
-    }
+    // Order matters: the "needs more information" replies are checked before
+    // the generic error. They previously carried their explanation in a field
+    // called `error`, so this handler matched them first and rendered a dead
+    // end -- the prompt that was supposed to collect a Page ID never appeared.
+    // They now use `message`, and are matched ahead of `error` regardless.
     if (data?.needs_choice) {
       setPages(data.pages || []);
       setStatus("choose");
       return;
     }
     if (data?.needs_page_id) {
-      setMessage(data.error || "");
+      setMessage(data.message || data.error || "");
       setStatus("page_id");
+      return;
+    }
+    if (data?.error) {
+      setStatus("error");
+      setMessage(data.error);
       return;
     }
 
