@@ -29,6 +29,23 @@ export const INSTAGRAM_SCOPES =
   import.meta.env.VITE_INSTAGRAM_SCOPES ||
   "instagram_basic,pages_show_list,pages_read_engagement";
 
+// Whether to request Meta's "Login for Business" onboarding channel.
+//
+// Off by default, and that is deliberate. Sending
+// extras={"setup":{"channel":"IG_API_ONBOARDING"}} routes the user into
+// /facebook_business_extension/oauth/, which requires public_profile at
+// ADVANCED access -- and Advanced Access requires Business Verification.
+// Until that is approved the channel dies on a bare "Sorry, something went
+// wrong" page before the user can grant anything, so no connection is
+// possible at all. Verified against the live app: the identical request
+// minus this parameter completed the entire flow.
+//
+// It buys an onboarding convenience (attaching an Instagram account inline),
+// not any extra capability -- permissions, token and /me/accounts behave the
+// same without it. Flip on once Business Verification is approved.
+export const USE_BUSINESS_LOGIN =
+  String(import.meta.env.VITE_INSTAGRAM_BUSINESS_LOGIN || "false").toLowerCase() === "true";
+
 const OAUTH_BASE = "https://www.facebook.com/v26.0/dialog/oauth";
 
 /** Full Meta login URL to send the creator to. */
@@ -36,13 +53,13 @@ export function buildInstagramOAuthUrl() {
   const params = new URLSearchParams({
     client_id: META_APP_ID,
     display: "page",
-    // Routes the user through Meta's Instagram onboarding rather than plain
-    // Facebook login, so an unlinked IG account can be attached inline.
-    extras: JSON.stringify({ setup: { channel: "IG_API_ONBOARDING" } }),
     redirect_uri: INSTAGRAM_REDIRECT_URI,
     response_type: "token",
     scope: INSTAGRAM_SCOPES,
   });
+  if (USE_BUSINESS_LOGIN) {
+    params.set("extras", JSON.stringify({ setup: { channel: "IG_API_ONBOARDING" } }));
+  }
   return `${OAUTH_BASE}?${params}`;
 }
 
