@@ -5,6 +5,7 @@ import AppTopBar, { SearchBox } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 import { formatVND } from "../../utils/currency";
 import { combinedFollowers, formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 import AvatarImage from "../components/AvatarImage";
@@ -316,7 +317,7 @@ export default function CreatorProfile() {
     (async () => {
       setLoading(true);
       setNotFound(false);
-      const { data } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+      const { data } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", id).maybeSingle();
       if (!active) return;
       if (!data) {
         setNotFound(true);

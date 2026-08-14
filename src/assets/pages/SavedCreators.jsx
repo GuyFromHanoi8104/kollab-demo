@@ -5,6 +5,7 @@ import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 
 function LocationIcon({ color }) {
   return (
@@ -104,7 +105,7 @@ export default function SavedCreators() {
         }
         return;
       }
-      const { data: profileRows } = await supabase.from("profiles").select("*").in("id", ids).eq("role", "creator");
+      const { data: profileRows } = await supabase.from("profiles").select(PROFILE_COLUMNS).in("id", ids).eq("role", "creator");
       if (!active) return;
       setCreators(profileRows ?? []);
       setLoading(false);

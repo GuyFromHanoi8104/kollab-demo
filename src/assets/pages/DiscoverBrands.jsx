@@ -8,6 +8,7 @@ import PremiumAIPanel from "../components/PremiumAIPanel";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 import { formatRelativeTime } from "../../utils/relativeTime";
 
 // Rotates a few muted background tints across cards purely for visual
@@ -160,7 +161,7 @@ export default function DiscoverBrands() {
       setLoading(true);
       const { data: brandRows } = await supabase
         .from("profiles")
-        .select("*")
+        .select(PROFILE_COLUMNS)
         .eq("role", "brand")
         .order("created_at", { ascending: false });
 

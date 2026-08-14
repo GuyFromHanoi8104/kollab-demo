@@ -14,6 +14,7 @@ import Settings from "./assets/pages/Settings";
 import SavedCreators from "./assets/pages/SavedCreators";
 import Messages from "./assets/pages/Messages";
 import MyProfile from "./assets/pages/MyProfile";
+import InstagramCallback from "./assets/pages/InstagramCallback";
 import ProtectedRoute from "./assets/components/ProtectedRoute";
 import { AuthProvider } from "./assets/context/AuthContext";
 
@@ -37,6 +38,11 @@ export default function App() {
         <Route path="/saved" element={<ProtectedRoute><SavedCreators /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
         <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+        {/* Not wrapped in ProtectedRoute: Meta redirects here directly, and a
+            ProtectedRoute redirect would discard the URL fragment carrying the
+            token before it could ever be read. The page checks the session
+            itself instead. */}
+        <Route path="/instagram/callback" element={<InstagramCallback />} />
       </Routes>
     </BrowserRouter>
     </AuthProvider>
