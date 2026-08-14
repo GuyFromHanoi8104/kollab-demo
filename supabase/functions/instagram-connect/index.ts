@@ -1,36 +1,41 @@
 // Supabase Edge Function: instagram-connect
 //
-// Completes the Meta "Facebook Login for Business" handshake for a creator
-// and stores the resulting Instagram connection.
+// Business Login for Instagram ("Instagram API with Instagram Login").
 //
-// Why this is server-side at all: the exchange needs the Meta App Secret,
-// and the result is a long-lived token. Neither may touch the browser. The
-// frontend only ever holds the short-lived token that Meta already put in
-// its own URL fragment, and posts it straight here.
+// Replaces the previous Facebook Login for Business implementation, which
+// required every creator to own a Facebook Page, link Instagram to it, and the
+// app to hold Advanced Access before anyone but its own testers could connect.
+// It also depended on GET /me/accounts to discover the Page -- which returned
+// an empty list on a real, correctly-linked account, because enumerating Pages
+// and reading one by id are authorised differently.
+//
+// This flow talks to the Instagram professional account directly:
+//
+//   code  --(app secret)-->  short-lived token  -->  long-lived token
+//                                                        |
+//                                     GET /me?fields=followers_count
+//
+// No Pages, no enumeration, no chooser. The browser only ever holds a
+// single-use authorization code, which is worthless without the app secret --
+// strictly safer than the old flow, which handed the browser a live token.
 //
 // Actions (POST body { action, ... }):
-//   "connect"  -> exchange short-lived token, list Pages with an attached
-//                 Instagram account. One match: store it. Several: return
-//                 the choices (never the tokens) so the user picks.
-//   "refresh"  -> re-read followers_count for the caller's stored connection
-//                 and write it back.
-//
-// Multi-Page handling is deliberately a second round trip rather than the
-// function holding state between calls: the browser re-sends the same
-// short-lived token with its chosen page_id and the exchange runs again.
-// Short-lived tokens last ~1h, so this always succeeds in practice, and it
-// means the long-lived token never leaves this function even momentarily.
+//   "connect"  -> exchange the code and store the connection
+//   "refresh"  -> re-read followers_count for the caller and write it back
 //
 // Deploy (does NOT happen on git push):
 //   supabase functions deploy instagram-connect
-//   supabase secrets set META_APP_ID=... META_APP_SECRET=...
-// SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are provided
-// automatically; confirm the service_role key under
-// Project Settings -> Edge Functions -> Secrets.
+//   supabase secrets set INSTAGRAM_APP_ID=... INSTAGRAM_APP_SECRET=...
+//
+// NOTE: these are the INSTAGRAM app id/secret from
+// Instagram > API setup with Instagram login -- not the Facebook App ID and
+// secret used by the previous version. They are different values.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const GRAPH = "https://graph.facebook.com/v26.0";
+const IG_GRAPH = "https://graph.instagram.com";
+const IG_GRAPH_VERSION = "v25.0";
+const IG_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,15 +51,20 @@ function jsonResponse(body: unknown, status: number) {
 }
 
 /** Meta returns errors as 200-with-error-body often enough to check both. */
-async function graph(path: string, params: Record<string, string>) {
-  const url = `${GRAPH}${path}?${new URLSearchParams(params)}`;
-  const res = await fetch(url);
+async function readMetaJson(res: Response) {
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || body.error) {
-    const msg = body?.error?.message ?? `Meta request failed (${res.status})`;
+  if (!res.ok || body.error || body.error_message) {
+    const msg =
+      body?.error?.message ??
+      body?.error_message ??
+      `Instagram request failed (${res.status})`;
     throw new Error(msg);
   }
   return body;
+}
+
+async function igGet(path: string, params: Record<string, string>) {
+  return readMetaJson(await fetch(`${IG_GRAPH}${path}?${new URLSearchParams(params)}`));
 }
 
 Deno.serve(async (req) => {
@@ -67,26 +77,29 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const appId = Deno.env.get("META_APP_ID") ?? "";
-  const appSecret = Deno.env.get("META_APP_SECRET") ?? "";
+  const appId = Deno.env.get("INSTAGRAM_APP_ID") ?? "";
+  const appSecret = Deno.env.get("INSTAGRAM_APP_SECRET") ?? "";
 
   if (!appId || !appSecret) {
     return jsonResponse(
-      { error: "Server is not configured: META_APP_ID / META_APP_SECRET are not set." },
+      {
+        error:
+          "Server is not configured: INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET are not set. " +
+          "These come from Instagram > API setup with Instagram login, and are different " +
+          "from the Facebook App ID and secret.",
+      },
       500,
     );
   }
 
   try {
-    // Scoped to the caller's JWT -- this is what proves who is asking. The
-    // profile row written below is always this id, never one from the body.
+    // Scoped to the caller's JWT -- this is what proves who is asking. The row
+    // written below is always this id, never one taken from the request body.
     const supabaseClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: userData, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !userData?.user) {
-      return jsonResponse({ error: "Not authenticated" }, 401);
-    }
+    if (userError || !userData?.user) return jsonResponse({ error: "Not authenticated" }, 401);
     const userId = userData.user.id;
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -101,141 +114,88 @@ Deno.serve(async (req) => {
         .eq("id", userId)
         .maybeSingle();
 
-      if (!profile?.instagram_business_account_id || !profile?.instagram_access_token) {
-        return jsonResponse({ connected: false }, 200);
-      }
+      if (!profile?.instagram_access_token) return jsonResponse({ connected: false }, 200);
 
-      const ig = await graph(`/${profile.instagram_business_account_id}`, {
-        fields: "followers_count,username",
+      const me = await igGet(`/${IG_GRAPH_VERSION}/me`, {
+        fields: "user_id,username,followers_count",
         access_token: profile.instagram_access_token,
       });
 
-      // The real number replaces the self-reported one. Every existing
-      // surface (Discover, Creator Profile) already reads instagram_followers,
-      // so they all show the verified figure without further changes, and
-      // instagram_business_account_id marks it as Instagram-verified.
+      // The verified number replaces the self-reported one. Discover and
+      // Creator Profile already read instagram_followers, so they show the
+      // real figure with no further changes.
       await adminClient
         .from("profiles")
-        .update({ instagram_followers: ig.followers_count ?? null })
+        .update({ instagram_followers: me.followers_count ?? null })
         .eq("id", userId);
 
       return jsonResponse(
-        { connected: true, followers_count: ig.followers_count ?? null, username: ig.username ?? null },
+        { connected: true, followers_count: me.followers_count ?? null, username: me.username ?? null },
         200,
       );
     }
 
     // ---------------------------------------------------------------- connect
-    const shortLivedToken = body.access_token;
-    if (!shortLivedToken || typeof shortLivedToken !== "string") {
-      return jsonResponse({ error: "Missing access_token" }, 400);
+    const code = body.code;
+    if (!code || typeof code !== "string") {
+      return jsonResponse({ error: "Missing authorization code" }, 400);
+    }
+    // Instagram binds the code to the exact redirect_uri used to obtain it, so
+    // accepting this from the browser is safe: a wrong value fails the
+    // exchange rather than redirecting anything anywhere.
+    const redirectUri = body.redirect_uri;
+    if (!redirectUri || typeof redirectUri !== "string") {
+      return jsonResponse({ error: "Missing redirect_uri" }, 400);
     }
 
-    // Meta's redirect fragment can already include a long_lived_token, but the
-    // documented exchange is done here anyway: it is the only step that proves
-    // possession of the App Secret, and it does not depend on the browser
-    // having handed us an honest value.
-    const exchanged = await graph("/oauth/access_token", {
-      grant_type: "fb_exchange_token",
+    // Step 1: code -> short-lived token. Form-encoded POST, unlike every other
+    // call here.
+    const form = new URLSearchParams({
       client_id: appId,
       client_secret: appSecret,
-      fb_exchange_token: shortLivedToken,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri,
+      code,
     });
-    const longLivedUserToken = exchanged.access_token;
-    if (!longLivedUserToken) {
-      return jsonResponse({ error: "Meta did not return a long-lived token." }, 502);
-    }
+    const shortLived = await readMetaJson(
+      await fetch(IG_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      }),
+    );
+    const shortToken = shortLived.access_token;
+    if (!shortToken) return jsonResponse({ error: "Instagram did not return an access token." }, 502);
 
-    const chosenPageId = body.page_id;
+    // Step 2: short-lived (1 hour) -> long-lived (60 days).
+    const longLived = await igGet("/access_token", {
+      grant_type: "ig_exchange_token",
+      client_secret: appSecret,
+      access_token: shortToken,
+    });
+    const longToken = longLived.access_token ?? shortToken;
 
-    const accounts = await graph("/me/accounts", {
-      fields: "id,name,access_token,instagram_business_account{id,username,followers_count}",
-      access_token: longLivedUserToken,
+    // Step 3: read the profile. This is the whole reason for the feature, and
+    // it is a single call against /me -- no Pages involved.
+    const me = await igGet(`/${IG_GRAPH_VERSION}/me`, {
+      fields: "user_id,username,followers_count",
+      access_token: longToken,
     });
 
-    let pages = (accounts.data ?? []).filter((p: Record<string, unknown>) => p.instagram_business_account);
+    const igUserId = String(me.user_id ?? shortLived.user_id ?? "");
+    if (!igUserId) return jsonResponse({ error: "Instagram did not return an account id." }, 502);
 
-    // Some accounts return an empty /me/accounts even though the user
-    // administers the Page and can read it directly. Confirmed against a real
-    // account: /me/accounts returned {"data":[]} while
-    // GET /{page-id}?fields=instagram_business_account returned the linked
-    // account and a live follower count -- same token, pages_show_list
-    // granted. Enumerating Pages and reading one by id are authorised
-    // differently, so an empty list is not proof of "no Pages", only that
-    // Facebook declined to list them.
-    if (pages.length === 0 && chosenPageId) {
-      const direct = await graph(`/${chosenPageId}`, {
-        fields: "id,name,access_token,instagram_business_account{id,username,followers_count}",
-        access_token: longLivedUserToken,
-      });
-      if (direct?.instagram_business_account) pages = [direct];
-    }
-
-    if (pages.length === 0) {
-      // 200, not 400: this asks for more information rather than reporting a
-      // failure. The browser collects a Page ID and calls straight back.
-      return jsonResponse(
-        {
-          needs_page_id: true,
-          // Deliberately `message`, not `error`. The browser's error handler
-          // watches for `error`, so putting the explanation there made this
-          // reply look like a failure and swallowed the prompt entirely.
-          message:
-            "We couldn't list your Facebook Pages automatically. Enter your Page ID and " +
-            "we'll connect it directly.",
-        },
-        200,
-      );
-    }
-    let page = pages[0];
-    if (pages.length > 1) {
-      if (!chosenPageId) {
-        // Ask rather than guess which Page is the right one. Deliberately no
-        // tokens in this payload -- only what the user needs to choose.
-        return jsonResponse(
-          {
-            needs_choice: true,
-            pages: pages.map((p: Record<string, any>) => ({
-              page_id: p.id,
-              page_name: p.name,
-              instagram_username: p.instagram_business_account?.username ?? null,
-              followers_count: p.instagram_business_account?.followers_count ?? null,
-            })),
-          },
-          200,
-        );
-      }
-      const match = pages.find((p: Record<string, unknown>) => p.id === chosenPageId);
-      if (!match) return jsonResponse({ error: "That Page is not available on this account." }, 400);
-      page = match;
-    }
-
-    const igAccount = page.instagram_business_account;
-    // The Page token, not the user token: it is what authorises reads on the
-    // Instagram Business Account node, and it inherits the long-lived expiry
-    // from the exchanged user token above.
-    const pageToken = page.access_token ?? longLivedUserToken;
-
-    // followers_count comes back on the nested field, but re-read it directly
-    // so a connection always stores a number it actually fetched.
-    let followersCount = igAccount?.followers_count ?? null;
-    try {
-      const ig = await graph(`/${igAccount.id}`, {
-        fields: "followers_count,username",
-        access_token: pageToken,
-      });
-      followersCount = ig.followers_count ?? followersCount;
-    } catch {
-      // Storing the connection still succeeds; the count refreshes later.
-    }
-
+    // instagram_business_account_id keeps its name and its meaning: the id of
+    // the connected professional account, and the marker the UI uses to show
+    // "Verified via Instagram". Under Instagram Login it is the Instagram user
+    // id rather than a Page-derived one, which needs no schema change.
     const { error: updateError } = await adminClient
       .from("profiles")
       .update({
-        instagram_access_token: pageToken,
-        instagram_business_account_id: igAccount.id,
+        instagram_access_token: longToken,
+        instagram_business_account_id: igUserId,
         instagram_connected_at: new Date().toISOString(),
-        instagram_followers: followersCount,
+        instagram_followers: me.followers_count ?? null,
       })
       .eq("id", userId);
 
@@ -246,9 +206,8 @@ Deno.serve(async (req) => {
     return jsonResponse(
       {
         connected: true,
-        instagram_username: igAccount?.username ?? null,
-        followers_count: followersCount,
-        page_name: page.name ?? null,
+        instagram_username: me.username ?? null,
+        followers_count: me.followers_count ?? null,
       },
       200,
     );
