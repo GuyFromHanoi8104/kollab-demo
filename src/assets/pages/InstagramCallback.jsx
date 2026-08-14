@@ -13,7 +13,8 @@ export default function InstagramCallback() {
   const navigate = useNavigate();
   const { user, loading: authLoading, refreshProfile } = useAuth();
 
-  const [status, setStatus] = useState("working"); // working | choose | done | error
+  const [status, setStatus] = useState("working"); // working | choose | page_id | done | error
+  const [pageIdInput, setPageIdInput] = useState("");
   const [message, setMessage] = useState("");
   const [pages, setPages] = useState([]);
   const [result, setResult] = useState(null);
@@ -50,6 +51,11 @@ export default function InstagramCallback() {
     if (data?.needs_choice) {
       setPages(data.pages || []);
       setStatus("choose");
+      return;
+    }
+    if (data?.needs_page_id) {
+      setMessage(data.error || "");
+      setStatus("page_id");
       return;
     }
 
@@ -141,6 +147,41 @@ export default function InstagramCallback() {
                 </button>
               ))}
             </div>
+          </>
+        )}
+
+        {status === "page_id" && (
+          <>
+            <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 22, margin: 0 }}>One more detail</h1>
+            <p style={{ color: appColors.gray, fontSize: 14, margin: 0 }}>{message}</p>
+            <p style={{ color: appColors.grayLight, fontSize: 13, margin: 0 }}>
+              Find it in Meta Business Suite → Settings → Accounts → Pages, under your Page name.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={pageIdInput}
+              onChange={(e) => setPageIdInput(e.target.value.replace(/[^0-9]/g, ""))}
+              onKeyDown={(e) => { if (e.key === "Enter" && pageIdInput.trim()) exchange(pageIdInput.trim()); }}
+              placeholder="e.g. 1207938699080214"
+              style={{
+                width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`,
+                borderRadius: 10, padding: "12px 14px", fontSize: 14, color: appColors.navy,
+                outline: "none", boxSizing: "border-box", colorScheme: "light",
+              }}
+            />
+            <button
+              type="button"
+              disabled={!pageIdInput.trim()}
+              onClick={() => exchange(pageIdInput.trim())}
+              style={{
+                background: pageIdInput.trim() ? appColors.primary : appColors.border, border: "none",
+                borderRadius: 12, padding: "13px 0", fontWeight: 700, color: "white", fontSize: 14,
+                cursor: pageIdInput.trim() ? "pointer" : "default",
+              }}
+            >
+              Connect this Page
+            </button>
           </>
         )}
 

@@ -146,24 +146,44 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Meta did not return a long-lived token." }, 502);
     }
 
+    const chosenPageId = body.page_id;
+
     const accounts = await graph("/me/accounts", {
       fields: "id,name,access_token,instagram_business_account{id,username,followers_count}",
       access_token: longLivedUserToken,
     });
 
-    const pages = (accounts.data ?? []).filter((p: Record<string, unknown>) => p.instagram_business_account);
-    if (pages.length === 0) {
-      return jsonResponse(
-        {
-          error:
-            "No Instagram Business or Creator account is connected to your Facebook Pages. " +
-            "Link them in Instagram settings, then try again.",
-        },
-        400,
-      );
+    let pages = (accounts.data ?? []).filter((p: Record<string, unknown>) => p.instagram_business_account);
+
+    // Some accounts return an empty /me/accounts even though the user
+    // administers the Page and can read it directly. Confirmed against a real
+    // account: /me/accounts returned {"data":[]} while
+    // GET /{page-id}?fields=instagram_business_account returned the linked
+    // account and a live follower count -- same token, pages_show_list
+    // granted. Enumerating Pages and reading one by id are authorised
+    // differently, so an empty list is not proof of "no Pages", only that
+    // Facebook declined to list them.
+    if (pages.length === 0 && chosenPageId) {
+      const direct = await graph(`/${chosenPageId}`, {
+        fields: "id,name,access_token,instagram_business_account{id,username,followers_count}",
+        access_token: longLivedUserToken,
+      });
+      if (direct?.instagram_business_account) pages = [direct];
     }
 
-    const chosenPageId = body.page_id;
+    if (pages.length === 0) {
+      // 200, not 400: this asks for more information rather than reporting a
+      // failure. The browser collects a Page ID and calls straight back.
+      return jsonResponse(
+        {
+          needs_page_id: true,
+          error:
+            "We couldn't list your Facebook Pages automatically. Enter your Page ID and " +
+            "we'll connect it directly.",
+        },
+        200,
+      );
+    }
     let page = pages[0];
     if (pages.length > 1) {
       if (!chosenPageId) {
