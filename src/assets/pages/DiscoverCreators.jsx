@@ -8,6 +8,7 @@ import PremiumAIPanel from "../components/PremiumAIPanel";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 import { combinedAvgViews, combinedFollowers, formatCount, formatEngagement, hasAnyStats, sortByStatDesc } from "../../utils/creatorStats";
 import { formatRelativeTime } from "../../utils/relativeTime";
 
@@ -256,7 +257,7 @@ export default function DiscoverCreators() {
       setLoading(true);
       const { data } = await supabase
         .from("profiles")
-        .select("*")
+        .select(PROFILE_COLUMNS)
         .eq("role", "creator")
         .order("created_at", { ascending: false });
       if (!active) return;

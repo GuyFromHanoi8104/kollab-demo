@@ -6,6 +6,7 @@ import { NICHE_STYLES } from "../components/nicheStyles";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { buildInstagramOAuthUrl } from "../../utils/instagramAuth";
 import { formatVND } from "../../utils/currency";
 import { formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 
@@ -175,11 +176,25 @@ function StatCard({ label, value, color }) {
   );
 }
 
-// These are self-reported by the creator (Edit Profile), not pulled from a
-// TikTok/Instagram API -- stats_verified just reflects whether someone's
-// spot-checked the number against the real account, not that it's
-// independently confirmed on every view.
-function VerifiedBadge({ verified }) {
+// Three distinct levels of trust, deliberately not collapsed into one label:
+//
+//   instagramVerified -- the follower number came from Instagram's own API
+//     through a connection this creator authorised. Nobody typed it.
+//   verified (stats_verified) -- a self-reported number a founder eyeballed
+//     against the real account once. Weaker, and only as fresh as that check.
+//   neither -- straight self-report.
+//
+// Showing the automatic one as plain "✓ Verified" would flatten a machine-
+// checked figure into a human-spot-checked one and quietly overstate the
+// latter.
+function VerifiedBadge({ verified, instagramVerified }) {
+  if (instagramVerified) {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontWeight: 700, fontSize: 12 }}>
+        ✓ Verified via Instagram
+      </span>
+    );
+  }
   return verified ? (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontWeight: 700, fontSize: 12 }}>
       ✓ Verified
@@ -215,7 +230,7 @@ function InvitationCard({ invite, onRespond, busy }) {
 }
 
 export default function MyProfile() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, role, refreshProfile } = useAuth();
   const [applications, setApplications] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -229,6 +244,8 @@ export default function MyProfile() {
   const [bio, setBio] = useState("");
   // Draft copy of profiles.niche (a text[] column) while the modal is open.
   const [nicheDraft, setNicheDraft] = useState([]);
+  const [igRefreshing, setIgRefreshing] = useState(false);
+  const [igError, setIgError] = useState("");
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
   const [tiktokFollowers, setTiktokFollowers] = useState("");
@@ -268,6 +285,35 @@ export default function MyProfile() {
     setInstagramAvgViews(profile.instagram_avg_views ?? "");
     setEngagementRate(profile.engagement_rate ?? "");
   }
+
+  // A stored instagram_business_account_id is the marker for a real
+  // connection -- the token itself is never readable from the client.
+  const igConnected = !!profile?.instagram_business_account_id;
+
+  // Pull the live count on profile load, so a connected creator's number is
+  // current rather than whatever was true at connection time. Fire-and-forget:
+  // the stored value is already on screen, and a failed refresh (expired or
+  // revoked token) should leave the page working, not blank it.
+  useEffect(() => {
+    if (!user || !igConnected) return;
+    let active = true;
+    (async () => {
+      setIgRefreshing(true);
+      const { data, error } = await supabase.functions.invoke("instagram-connect", {
+        body: { action: "refresh" },
+      });
+      if (!active) return;
+      setIgRefreshing(false);
+      if (error || data?.error) {
+        setIgError("Couldn't refresh from Instagram just now — showing the last known count.");
+        return;
+      }
+      setIgError("");
+      if (data?.followers_count != null) await refreshProfile();
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, igConnected]);
 
   const toggleNiche = (n) =>
     setNicheDraft((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
@@ -548,18 +594,53 @@ export default function MyProfile() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {profile && hasAnyStats(profile) && (
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <VerifiedBadge verified={!!profile.stats_verified} />
+              {profile && (hasAnyStats(profile) || igConnected) && (
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+                  {igRefreshing && <span style={{ color: appColors.grayLight, fontSize: 12 }}>Refreshing from Instagram…</span>}
+                  <VerifiedBadge verified={!!profile.stats_verified} instagramVerified={igConnected} />
                 </div>
               )}
               <div className="kollab-my-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
                 <StatCard label="TIKTOK FOLLOWERS" value={formatCount(profile?.tiktok_followers)} color={appColors.navy} />
                 <StatCard label="TIKTOK AVG VIEWS" value={formatCount(profile?.tiktok_avg_views)} color={appColors.navy} />
-                <StatCard label="IG FOLLOWERS" value={formatCount(profile?.instagram_followers)} color={appColors.navy} />
+                <StatCard
+                  label={igConnected ? "IG FOLLOWERS ✓" : "IG FOLLOWERS"}
+                  value={formatCount(profile?.instagram_followers)}
+                  color={igConnected ? "#16a34a" : appColors.navy}
+                />
                 <StatCard label="IG AVG VIEWS" value={formatCount(profile?.instagram_avg_views)} color={appColors.navy} />
                 <StatCard label="ENGAGEMENT" value={formatEngagement(profile?.engagement_rate)} color={appColors.primary} />
               </div>
+
+              {/* Connect / connected state. Creator-only: brands have no
+                  follower stats to verify. */}
+              {role === "creator" && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>
+                      {igConnected ? "Instagram connected" : "Connect Instagram"}
+                    </div>
+                    <div style={{ color: appColors.grayLight, fontSize: 12, marginTop: 2 }}>
+                      {igConnected
+                        ? `Your follower count is pulled straight from Instagram${profile?.instagram_connected_at ? ` — linked ${new Date(profile.instagram_connected_at).toLocaleDateString()}` : ""}.`
+                        : "Verify your real follower count automatically instead of reporting it yourself."}
+                    </div>
+                    {igError && <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginTop: 6 }}>{igError}</div>}
+                  </div>
+                  {!igConnected && (
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = buildInstagramOAuthUrl(); }}
+                      style={{
+                        background: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)", border: "none", borderRadius: 12,
+                        padding: "12px 22px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap",
+                      }}
+                    >
+                      Connect Instagram
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Invitations -- the creator-side mirror of a brand clicking

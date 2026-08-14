@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 import { AuthContext } from "./authStore";
 
 // Wraps the whole app (see App.jsx). Tracks the real Supabase session plus
@@ -13,7 +14,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId) => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+    const { data } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", userId).single();
     setProfile(data ?? null);
   }, []);
 
