@@ -45,18 +45,11 @@ const PROFILE_EXTRAS = {
 };
 
 
-const AGE_DISTRIBUTION = [
-  { range: "18-24", pct: 38 },
-  { range: "25-34", pct: 44 },
-];
-
-const TOP_LOCATIONS = ["Hanoi", "Ho Chi Minh City", "Da Nang"];
-
-const PLATFORMS = [
-  { name: "TikTok", handle: "@mai.styles", followers: "186K", avgViews: "340K", bg: appColors.navy },
-  { name: "Instagram", handle: "@mai.styles_official", followers: "94K", avgViews: "110K", bg: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)" },
-];
-
+// AGE_DISTRIBUTION / TOP_LOCATIONS / PLATFORMS used to live here as hardcoded
+// sample figures. Audience insights are out of scope for the MVP and now show
+// an explicit "coming soon" state, and the platform cards read the real
+// profile columns instead. COLLABORATIONS and PORTFOLIO below are still mock;
+// they have no backing tables yet.
 const COLLABORATIONS = [
   { brand: "Uniqlo VN", campaign: "Winter Essentials Wardrobe", reach: "640K Reach" },
   { brand: "Shopee Vietnam", campaign: "11.11 Mega Sale Campaign", reach: "980K Reach" },
@@ -140,13 +133,6 @@ function CloseIcon() {
     </svg>
   );
 }
-function ArrowRight({ color }) {
-  return (
-    <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-      <path d="M1 1h7v7M8 1L1 8" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function AvatarPlaceholder({ size, radius, label, avatarUrl }) {
   return (
@@ -172,6 +158,45 @@ function StatCard({ label, value, color }) {
       ) : (
         <span style={{ color: appColors.grayLight, fontSize: 16, fontWeight: 600 }}>Not yet available</span>
       )}
+    </div>
+  );
+}
+
+// One card per platform. `verified` is reserved for numbers Instagram's API
+// reported -- anything else is whatever the creator typed in Edit Profile, and
+// is labelled as such rather than sharing the verified styling.
+function PlatformCard({ name, handle, bg, followers, avgViews, verified, action }) {
+  return (
+    <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+          <div style={{ background: bg, borderRadius: 12, width: 40, height: 40, flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>{name}</div>
+            <div style={{ color: appColors.grayLight, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {handle}
+            </div>
+          </div>
+        </div>
+        {verified && (
+          <span style={{ color: "#16a34a", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>✓ Verified</span>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 16, justifyContent: "space-around" }}>
+        {[["Followers", followers], ["Avg Views", avgViews]].map(([label, value]) => (
+          <div key={label}>
+            <div style={{ color: appColors.grayLight, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
+            {value != null ? (
+              <div style={{ color: verified ? "#16a34a" : appColors.navy, fontWeight: 700, fontSize: 16 }}>{value}</div>
+            ) : (
+              <div style={{ color: appColors.grayLight, fontWeight: 600, fontSize: 13 }}>—</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {action}
     </div>
   );
 }
@@ -246,6 +271,7 @@ export default function MyProfile() {
   const [nicheDraft, setNicheDraft] = useState([]);
   const [igRefreshing, setIgRefreshing] = useState(false);
   const [igError, setIgError] = useState("");
+  const [igDisconnecting, setIgDisconnecting] = useState(false);
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
   const [tiktokFollowers, setTiktokFollowers] = useState("");
@@ -314,6 +340,30 @@ export default function MyProfile() {
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, igConnected]);
+
+  // Clears the stored token and the verified marker. The follower number is
+  // left in place: it was real when fetched, and with the connection gone the
+  // UI already drops back to "Self-reported", so wiping it would blank the
+  // profile for no gain. Confirmed first because it can't be undone without
+  // going through Instagram's login again.
+  const disconnectInstagram = async () => {
+    if (!window.confirm(
+      "Disconnect Instagram? Your follower count will go back to being self-reported " +
+      "until you reconnect."
+    )) return;
+
+    setIgDisconnecting(true);
+    setIgError("");
+    const { data, error } = await supabase.functions.invoke("instagram-connect", {
+      body: { action: "disconnect" },
+    });
+    setIgDisconnecting(false);
+    if (error || data?.error) {
+      setIgError("Couldn't disconnect Instagram just now. Please try again.");
+      return;
+    }
+    await refreshProfile();
+  };
 
   const toggleNiche = (n) =>
     setNicheDraft((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
@@ -722,54 +772,88 @@ export default function MyProfile() {
 
             <div className="kollab-my-profile-insights-row" style={{ display: "flex", gap: 24 }}>
               <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
-                <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Audience Insights</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <span style={{ color: appColors.grayLight, fontSize: 14 }}>Age Distribution</span>
-                  {AGE_DISTRIBUTION.map((a) => (
-                    <div key={a.range} style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                      <span style={{ width: 40, color: appColors.grayLight, fontSize: 12 }}>{a.range}</span>
-                      <div style={{ flex: 1, background: appColors.primaryLight, height: 16, borderRadius: 9999, overflow: "hidden" }}>
-                        <div style={{ background: "rgba(21,80,211,0.7)", height: "100%", width: `${a.pct}%` }} />
-                      </div>
-                      <span style={{ width: 32, color: appColors.navy, fontWeight: 700, fontSize: 12 }}>{a.pct}%</span>
-                    </div>
-                  ))}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Audience Insights</h3>
+                  <span style={{ background: appColors.primaryLighter, color: appColors.primary, fontWeight: 700, fontSize: 11, borderRadius: 9999, padding: "4px 10px", letterSpacing: 0.4, textTransform: "uppercase" }}>
+                    Coming soon
+                  </span>
                 </div>
-                <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 17, display: "flex", flexDirection: "column", gap: 12 }}>
-                  <span style={{ color: appColors.grayLight, fontSize: 14 }}>Top Locations</span>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {TOP_LOCATIONS.map((loc) => (
-                      <span key={loc} style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 9999, padding: "5px 13px", fontSize: 12, color: appColors.navy }}>{loc}</span>
-                    ))}
-                  </div>
-                </div>
+                {/* Age distribution and top locations were hardcoded sample
+                    figures. Instagram can supply them via audience insights,
+                    but that needs a wider permission set and app review, so
+                    they are out of scope for the MVP. An empty state is better
+                    than numbers that look real and are not. */}
+                <p style={{ color: appColors.gray, fontSize: 14, lineHeight: "22px", margin: 0 }}>
+                  Age breakdown and top locations for your audience will appear here once
+                  audience analytics are switched on.
+                </p>
+                <p style={{ color: appColors.grayLight, fontSize: 13, margin: 0 }}>
+                  Not part of the current release — your follower stats opposite are unaffected.
+                </p>
               </div>
 
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-                {PLATFORMS.map((p) => (
-                  <div key={p.name} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                        <div style={{ background: p.bg, borderRadius: 12, width: 40, height: 40 }} />
-                        <div>
-                          <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>{p.name}</div>
-                          <div style={{ color: appColors.grayLight, fontSize: 12 }}>{p.handle}</div>
-                        </div>
-                      </div>
-                      <ArrowRight color={appColors.grayLight} />
-                    </div>
-                    <div style={{ display: "flex", gap: 16, justifyContent: "space-around" }}>
-                      <div>
-                        <div style={{ color: appColors.grayLight, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Followers</div>
-                        <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 16 }}>{p.followers}</div>
-                      </div>
-                      <div>
-                        <div style={{ color: appColors.grayLight, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Avg Views</div>
-                        <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 16 }}>{p.avgViews}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <PlatformCard
+                  name="Instagram"
+                  handle={igConnected ? "Connected account" : "Not connected"}
+                  bg="linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)"
+                  followers={formatCount(profile?.instagram_followers)}
+                  avgViews={formatCount(profile?.instagram_avg_views)}
+                  verified={igConnected}
+                  action={
+                    igConnected ? (
+                      <button
+                        type="button"
+                        onClick={disconnectInstagram}
+                        disabled={igDisconnecting}
+                        style={{
+                          background: "none", border: `1px solid ${appColors.border}`, borderRadius: 10,
+                          padding: "9px 0", fontWeight: 600, color: appColors.gray, fontSize: 13,
+                          cursor: igDisconnecting ? "default" : "pointer", opacity: igDisconnecting ? 0.6 : 1,
+                        }}
+                      >
+                        {igDisconnecting ? "Disconnecting…" : "Disconnect Instagram"}
+                      </button>
+                    ) : isInstagramConfigured() ? (
+                      <button
+                        type="button"
+                        onClick={() => { window.location.href = buildInstagramOAuthUrl(); }}
+                        style={{
+                          background: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)", border: "none",
+                          borderRadius: 10, padding: "10px 0", fontWeight: 700, color: "white", fontSize: 13, cursor: "pointer",
+                        }}
+                      >
+                        Connect Instagram for verified stats
+                      </button>
+                    ) : null
+                  }
+                />
+
+                {/* TikTok has no OAuth integration yet, so its numbers stay
+                    self-reported. The button is deliberately inert rather than
+                    hidden: it tells creators verification is coming without
+                    pretending it already works. */}
+                <PlatformCard
+                  name="TikTok"
+                  handle="Self-reported"
+                  bg={appColors.navy}
+                  followers={formatCount(profile?.tiktok_followers)}
+                  avgViews={formatCount(profile?.tiktok_avg_views)}
+                  verified={false}
+                  action={
+                    <button
+                      type="button"
+                      disabled
+                      title="TikTok verification isn't available yet"
+                      style={{
+                        background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 10,
+                        padding: "9px 0", fontWeight: 600, color: appColors.grayLight, fontSize: 13, cursor: "not-allowed",
+                      }}
+                    >
+                      Link TikTok for verified stats — coming soon
+                    </button>
+                  }
+                />
               </div>
             </div>
 

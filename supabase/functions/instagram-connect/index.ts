@@ -20,8 +20,9 @@
 // strictly safer than the old flow, which handed the browser a live token.
 //
 // Actions (POST body { action, ... }):
-//   "connect"  -> exchange the code and store the connection
-//   "refresh"  -> re-read followers_count for the caller and write it back
+//   "connect"     -> exchange the code and store the connection
+//   "refresh"     -> re-read followers_count for the caller and write it back
+//   "disconnect"  -> clear the stored credential and the verified marker
 //
 // Deploy (does NOT happen on git push):
 //   supabase functions deploy instagram-connect
@@ -133,6 +134,32 @@ Deno.serve(async (req) => {
         { connected: true, followers_count: me.followers_count ?? null, username: me.username ?? null },
         200,
       );
+    }
+
+    // ------------------------------------------------------------- disconnect
+    if (action === "disconnect") {
+      // Clears the stored credential and the verified marker. Runs through
+      // service_role because the client cannot write these columns at all --
+      // see the 20260814_lock_instagram_token grants.
+      //
+      // instagram_followers is deliberately left alone. It holds a real number
+      // Instagram reported; wiping it would blank the profile, and keeping it
+      // is honest because with instagram_business_account_id gone the UI drops
+      // straight back to "Self-reported". The creator can edit it like any
+      // other self-reported stat.
+      const { error: clearError } = await adminClient
+        .from("profiles")
+        .update({
+          instagram_access_token: null,
+          instagram_business_account_id: null,
+          instagram_connected_at: null,
+        })
+        .eq("id", userId);
+
+      if (clearError) {
+        return jsonResponse({ error: `Could not disconnect: ${clearError.message}` }, 500);
+      }
+      return jsonResponse({ disconnected: true }, 200);
     }
 
     // ---------------------------------------------------------------- connect
