@@ -428,9 +428,13 @@ export default function SignUp() {
                     style={{ width: 16, height: 16, marginTop: 2, borderRadius: 4, border: "1px solid #c3c6d7", accentColor: colors.blue, flexShrink: 0 }}
                   />
                   <p style={{ color: colors.gray, fontSize: 12, lineHeight: "16px", margin: 0, paddingLeft: 12 }}>
+                    {/* These pointed at /terms and /privacy before either route
+                        existed, so the links a user is asked to agree to 404'd.
+                        Opened in a new tab so reading them doesn't discard a
+                        half-filled signup form. */}
                     By continuing, you agree to our{" "}
-                    <a href="/terms" style={{ color: colors.blueDark, textDecoration: "none" }}>Terms of Service</a>{" "}
-                    and <a href="/privacy" style={{ color: colors.blueDark, textDecoration: "none" }}>Privacy Policy</a>.
+                    <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: colors.blueDark, textDecoration: "none" }}>Terms of Service</Link>{" "}
+                    and <Link to="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: colors.blueDark, textDecoration: "none" }}>Privacy Policy</Link>.
                   </p>
                 </div>
 

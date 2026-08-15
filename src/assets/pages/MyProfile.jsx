@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
+import { NICHE_STYLES } from "../components/nicheStyles";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { buildInstagramOAuthUrl, isInstagramConfigured } from "../../utils/instagramAuth";
 import { formatVND } from "../../utils/currency";
 import { formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 
@@ -43,18 +45,11 @@ const PROFILE_EXTRAS = {
 };
 
 
-const AGE_DISTRIBUTION = [
-  { range: "18-24", pct: 38 },
-  { range: "25-34", pct: 44 },
-];
-
-const TOP_LOCATIONS = ["Hanoi", "Ho Chi Minh City", "Da Nang"];
-
-const PLATFORMS = [
-  { name: "TikTok", handle: "@mai.styles", followers: "186K", avgViews: "340K", bg: appColors.navy },
-  { name: "Instagram", handle: "@mai.styles_official", followers: "94K", avgViews: "110K", bg: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)" },
-];
-
+// AGE_DISTRIBUTION / TOP_LOCATIONS / PLATFORMS used to live here as hardcoded
+// sample figures. Audience insights are out of scope for the MVP and now show
+// an explicit "coming soon" state, and the platform cards read the real
+// profile columns instead. COLLABORATIONS and PORTFOLIO below are still mock;
+// they have no backing tables yet.
 const COLLABORATIONS = [
   { brand: "Uniqlo VN", campaign: "Winter Essentials Wardrobe", reach: "640K Reach" },
   { brand: "Shopee Vietnam", campaign: "11.11 Mega Sale Campaign", reach: "980K Reach" },
@@ -138,13 +133,6 @@ function CloseIcon() {
     </svg>
   );
 }
-function ArrowRight({ color }) {
-  return (
-    <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-      <path d="M1 1h7v7M8 1L1 8" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function AvatarPlaceholder({ size, radius, label, avatarUrl }) {
   return (
@@ -174,11 +162,64 @@ function StatCard({ label, value, color }) {
   );
 }
 
-// These are self-reported by the creator (Edit Profile), not pulled from a
-// TikTok/Instagram API -- stats_verified just reflects whether someone's
-// spot-checked the number against the real account, not that it's
-// independently confirmed on every view.
-function VerifiedBadge({ verified }) {
+// One card per platform. `verified` is reserved for numbers Instagram's API
+// reported -- anything else is whatever the creator typed in Edit Profile, and
+// is labelled as such rather than sharing the verified styling.
+function PlatformCard({ name, handle, bg, followers, avgViews, verified, action }) {
+  return (
+    <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+          <div style={{ background: bg, borderRadius: 12, width: 40, height: 40, flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>{name}</div>
+            <div style={{ color: appColors.grayLight, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {handle}
+            </div>
+          </div>
+        </div>
+        {verified && (
+          <span style={{ color: "#16a34a", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>✓ Verified</span>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 16, justifyContent: "space-around" }}>
+        {[["Followers", followers], ["Avg Views", avgViews]].map(([label, value]) => (
+          <div key={label}>
+            <div style={{ color: appColors.grayLight, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
+            {value != null ? (
+              <div style={{ color: verified ? "#16a34a" : appColors.navy, fontWeight: 700, fontSize: 16 }}>{value}</div>
+            ) : (
+              <div style={{ color: appColors.grayLight, fontWeight: 600, fontSize: 13 }}>—</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {action}
+    </div>
+  );
+}
+
+// Three distinct levels of trust, deliberately not collapsed into one label:
+//
+//   instagramVerified -- the follower number came from Instagram's own API
+//     through a connection this creator authorised. Nobody typed it.
+//   verified (stats_verified) -- a self-reported number a founder eyeballed
+//     against the real account once. Weaker, and only as fresh as that check.
+//   neither -- straight self-report.
+//
+// Showing the automatic one as plain "✓ Verified" would flatten a machine-
+// checked figure into a human-spot-checked one and quietly overstate the
+// latter.
+function VerifiedBadge({ verified, instagramVerified }) {
+  if (instagramVerified) {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontWeight: 700, fontSize: 12 }}>
+        ✓ Verified via Instagram
+      </span>
+    );
+  }
   return verified ? (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontWeight: 700, fontSize: 12 }}>
       ✓ Verified
@@ -214,7 +255,7 @@ function InvitationCard({ invite, onRespond, busy }) {
 }
 
 export default function MyProfile() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, role, refreshProfile } = useAuth();
   const [applications, setApplications] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -226,6 +267,11 @@ export default function MyProfile() {
   const [savedToast, setSavedToast] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bio, setBio] = useState("");
+  // Draft copy of profiles.niche (a text[] column) while the modal is open.
+  const [nicheDraft, setNicheDraft] = useState([]);
+  const [igRefreshing, setIgRefreshing] = useState(false);
+  const [igError, setIgError] = useState("");
+  const [igDisconnecting, setIgDisconnecting] = useState(false);
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
   const [tiktokFollowers, setTiktokFollowers] = useState("");
@@ -249,6 +295,9 @@ export default function MyProfile() {
   if (profile && profile.id !== seededProfileId) {
     setSeededProfileId(profile.id);
     setBio(profile.bio || "");
+    // Guarded rather than defaulted: the column is nullable, and a non-array
+    // value would break every .map()/.some() that reads niche elsewhere.
+    setNicheDraft(Array.isArray(profile.niche) ? profile.niche : []);
     setSeededStats({
       tiktok_followers: profile.tiktok_followers ?? null,
       tiktok_avg_views: profile.tiktok_avg_views ?? null,
@@ -263,9 +312,65 @@ export default function MyProfile() {
     setEngagementRate(profile.engagement_rate ?? "");
   }
 
+  // A stored instagram_business_account_id is the marker for a real
+  // connection -- the token itself is never readable from the client.
+  const igConnected = !!profile?.instagram_business_account_id;
+
+  // Pull the live count on profile load, so a connected creator's number is
+  // current rather than whatever was true at connection time. Fire-and-forget:
+  // the stored value is already on screen, and a failed refresh (expired or
+  // revoked token) should leave the page working, not blank it.
+  useEffect(() => {
+    if (!user || !igConnected) return;
+    let active = true;
+    (async () => {
+      setIgRefreshing(true);
+      const { data, error } = await supabase.functions.invoke("instagram-connect", {
+        body: { action: "refresh" },
+      });
+      if (!active) return;
+      setIgRefreshing(false);
+      if (error || data?.error) {
+        setIgError("Couldn't refresh from Instagram just now — showing the last known count.");
+        return;
+      }
+      setIgError("");
+      if (data?.followers_count != null) await refreshProfile();
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, igConnected]);
+
+  // Clears the stored token and the verified marker. The follower number is
+  // left in place: it was real when fetched, and with the connection gone the
+  // UI already drops back to "Self-reported", so wiping it would blank the
+  // profile for no gain. Confirmed first because it can't be undone without
+  // going through Instagram's login again.
+  const disconnectInstagram = async () => {
+    if (!window.confirm(
+      "Disconnect Instagram? Your follower count will go back to being self-reported " +
+      "until you reconnect."
+    )) return;
+
+    setIgDisconnecting(true);
+    setIgError("");
+    const { data, error } = await supabase.functions.invoke("instagram-connect", {
+      body: { action: "disconnect" },
+    });
+    setIgDisconnecting(false);
+    if (error || data?.error) {
+      setIgError("Couldn't disconnect Instagram just now. Please try again.");
+      return;
+    }
+    await refreshProfile();
+  };
+
+  const toggleNiche = (n) =>
+    setNicheDraft((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
+
   const displayName = profile?.name || "Your name";
   const handle = profile?.handle || "@add-your-handle";
-  const tags = profile?.niche?.length ? profile.niche : ["Add your niches"];
+  const tags = Array.isArray(profile?.niche) ? profile.niche : [];
   const location = profile?.location || "Add your location";
 
   // Applications and invitations don't carry the brand/campaign name
@@ -416,7 +521,7 @@ export default function MyProfile() {
     // just because Save was clicked (e.g. only the bio was edited).
     const prevStats = seededStats || {};
     const statsChanged = Object.keys(newStats).some((key) => newStats[key] !== (prevStats[key] ?? null));
-    const payload = { bio, avatar_url: avatarUrl, ...newStats, stats_updated_at: new Date().toISOString() };
+    const payload = { bio, niche: nicheDraft, avatar_url: avatarUrl, ...newStats, stats_updated_at: new Date().toISOString() };
     if (statsChanged) payload.stats_verified = false;
     await supabase.from("profiles").update(payload).eq("id", user.id);
     await refreshProfile();
@@ -495,10 +600,30 @@ export default function MyProfile() {
                   <div>
                     <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 36, letterSpacing: -0.9, margin: 0 }}>{displayName}</h1>
                     <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16, marginTop: 6 }}>{handle}</div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      {tags.map((tag) => (
-                        <span key={tag} style={{ background: appColors.primaryLight, color: appColors.primary, fontWeight: 600, fontSize: 12, borderRadius: 9999, padding: "6px 16px" }}>{tag}</span>
-                      ))}
+                    <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                      {tags.length > 0 ? (
+                        tags.map((tag) => {
+                          const style = NICHE_STYLES[tag];
+                          return (
+                            <span
+                              key={tag}
+                              style={{
+                                background: style?.bg || appColors.primaryLight,
+                                color: style?.color || appColors.primary,
+                                fontWeight: 600, fontSize: 12, borderRadius: 9999, padding: "6px 16px",
+                              }}
+                            >
+                              {tag.charAt(0) + tag.slice(1).toLowerCase()}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        // Muted and italic so an empty state never reads as a
+                        // niche the creator actually picked.
+                        <span style={{ color: appColors.grayLight, fontSize: 13, fontStyle: "italic" }}>
+                          No niches yet — add them in Edit Profile
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -519,18 +644,61 @@ export default function MyProfile() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {profile && hasAnyStats(profile) && (
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <VerifiedBadge verified={!!profile.stats_verified} />
+              {profile && (hasAnyStats(profile) || igConnected) && (
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+                  {igRefreshing && <span style={{ color: appColors.grayLight, fontSize: 12 }}>Refreshing from Instagram…</span>}
+                  <VerifiedBadge verified={!!profile.stats_verified} instagramVerified={igConnected} />
                 </div>
               )}
               <div className="kollab-my-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
                 <StatCard label="TIKTOK FOLLOWERS" value={formatCount(profile?.tiktok_followers)} color={appColors.navy} />
                 <StatCard label="TIKTOK AVG VIEWS" value={formatCount(profile?.tiktok_avg_views)} color={appColors.navy} />
-                <StatCard label="IG FOLLOWERS" value={formatCount(profile?.instagram_followers)} color={appColors.navy} />
+                <StatCard
+                  label={igConnected ? "IG FOLLOWERS ✓" : "IG FOLLOWERS"}
+                  value={formatCount(profile?.instagram_followers)}
+                  color={igConnected ? "#16a34a" : appColors.navy}
+                />
                 <StatCard label="IG AVG VIEWS" value={formatCount(profile?.instagram_avg_views)} color={appColors.navy} />
                 <StatCard label="ENGAGEMENT" value={formatEngagement(profile?.engagement_rate)} color={appColors.primary} />
               </div>
+
+              {/* Connect / connected state. Creator-only: brands have no
+                  follower stats to verify. */}
+              {role === "creator" && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>
+                      {igConnected ? "Instagram connected" : "Connect Instagram"}
+                    </div>
+                    <div style={{ color: appColors.grayLight, fontSize: 12, marginTop: 2 }}>
+                      {igConnected
+                        ? `Your follower count is pulled straight from Instagram${profile?.instagram_connected_at ? ` — linked ${new Date(profile.instagram_connected_at).toLocaleDateString()}` : ""}.`
+                        : "Verify your real follower count automatically instead of reporting it yourself."}
+                    </div>
+                    {igError && <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginTop: 6 }}>{igError}</div>}
+                    {!igConnected && !isInstagramConfigured() && (
+                      // Better to say so than to send someone to an Instagram
+                      // login page that rejects them after they've typed a
+                      // password.
+                      <div style={{ color: "#b45309", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                        Instagram connection isn't configured yet — VITE_INSTAGRAM_APP_ID is unset.
+                      </div>
+                    )}
+                  </div>
+                  {!igConnected && isInstagramConfigured() && (
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = buildInstagramOAuthUrl(); }}
+                      style={{
+                        background: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)", border: "none", borderRadius: 12,
+                        padding: "12px 22px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap",
+                      }}
+                    >
+                      Connect Instagram
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Invitations -- the creator-side mirror of a brand clicking
@@ -604,54 +772,88 @@ export default function MyProfile() {
 
             <div className="kollab-my-profile-insights-row" style={{ display: "flex", gap: 24 }}>
               <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
-                <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Audience Insights</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <span style={{ color: appColors.grayLight, fontSize: 14 }}>Age Distribution</span>
-                  {AGE_DISTRIBUTION.map((a) => (
-                    <div key={a.range} style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                      <span style={{ width: 40, color: appColors.grayLight, fontSize: 12 }}>{a.range}</span>
-                      <div style={{ flex: 1, background: appColors.primaryLight, height: 16, borderRadius: 9999, overflow: "hidden" }}>
-                        <div style={{ background: "rgba(21,80,211,0.7)", height: "100%", width: `${a.pct}%` }} />
-                      </div>
-                      <span style={{ width: 32, color: appColors.navy, fontWeight: 700, fontSize: 12 }}>{a.pct}%</span>
-                    </div>
-                  ))}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Audience Insights</h3>
+                  <span style={{ background: appColors.primaryLighter, color: appColors.primary, fontWeight: 700, fontSize: 11, borderRadius: 9999, padding: "4px 10px", letterSpacing: 0.4, textTransform: "uppercase" }}>
+                    Coming soon
+                  </span>
                 </div>
-                <div style={{ borderTop: `1px solid ${appColors.border}`, paddingTop: 17, display: "flex", flexDirection: "column", gap: 12 }}>
-                  <span style={{ color: appColors.grayLight, fontSize: 14 }}>Top Locations</span>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {TOP_LOCATIONS.map((loc) => (
-                      <span key={loc} style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 9999, padding: "5px 13px", fontSize: 12, color: appColors.navy }}>{loc}</span>
-                    ))}
-                  </div>
-                </div>
+                {/* Age distribution and top locations were hardcoded sample
+                    figures. Instagram can supply them via audience insights,
+                    but that needs a wider permission set and app review, so
+                    they are out of scope for the MVP. An empty state is better
+                    than numbers that look real and are not. */}
+                <p style={{ color: appColors.gray, fontSize: 14, lineHeight: "22px", margin: 0 }}>
+                  Age breakdown and top locations for your audience will appear here once
+                  audience analytics are switched on.
+                </p>
+                <p style={{ color: appColors.grayLight, fontSize: 13, margin: 0 }}>
+                  Not part of the current release — your follower stats opposite are unaffected.
+                </p>
               </div>
 
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-                {PLATFORMS.map((p) => (
-                  <div key={p.name} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 25, display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                        <div style={{ background: p.bg, borderRadius: 12, width: 40, height: 40 }} />
-                        <div>
-                          <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>{p.name}</div>
-                          <div style={{ color: appColors.grayLight, fontSize: 12 }}>{p.handle}</div>
-                        </div>
-                      </div>
-                      <ArrowRight color={appColors.grayLight} />
-                    </div>
-                    <div style={{ display: "flex", gap: 16, justifyContent: "space-around" }}>
-                      <div>
-                        <div style={{ color: appColors.grayLight, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Followers</div>
-                        <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 16 }}>{p.followers}</div>
-                      </div>
-                      <div>
-                        <div style={{ color: appColors.grayLight, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Avg Views</div>
-                        <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 16 }}>{p.avgViews}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <PlatformCard
+                  name="Instagram"
+                  handle={igConnected ? "Connected account" : "Not connected"}
+                  bg="linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)"
+                  followers={formatCount(profile?.instagram_followers)}
+                  avgViews={formatCount(profile?.instagram_avg_views)}
+                  verified={igConnected}
+                  action={
+                    igConnected ? (
+                      <button
+                        type="button"
+                        onClick={disconnectInstagram}
+                        disabled={igDisconnecting}
+                        style={{
+                          background: "none", border: `1px solid ${appColors.border}`, borderRadius: 10,
+                          padding: "9px 0", fontWeight: 600, color: appColors.gray, fontSize: 13,
+                          cursor: igDisconnecting ? "default" : "pointer", opacity: igDisconnecting ? 0.6 : 1,
+                        }}
+                      >
+                        {igDisconnecting ? "Disconnecting…" : "Disconnect Instagram"}
+                      </button>
+                    ) : isInstagramConfigured() ? (
+                      <button
+                        type="button"
+                        onClick={() => { window.location.href = buildInstagramOAuthUrl(); }}
+                        style={{
+                          background: "linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)", border: "none",
+                          borderRadius: 10, padding: "10px 0", fontWeight: 700, color: "white", fontSize: 13, cursor: "pointer",
+                        }}
+                      >
+                        Connect Instagram for verified stats
+                      </button>
+                    ) : null
+                  }
+                />
+
+                {/* TikTok has no OAuth integration yet, so its numbers stay
+                    self-reported. The button is deliberately inert rather than
+                    hidden: it tells creators verification is coming without
+                    pretending it already works. */}
+                <PlatformCard
+                  name="TikTok"
+                  handle="Self-reported"
+                  bg={appColors.navy}
+                  followers={formatCount(profile?.tiktok_followers)}
+                  avgViews={formatCount(profile?.tiktok_avg_views)}
+                  verified={false}
+                  action={
+                    <button
+                      type="button"
+                      disabled
+                      title="TikTok verification isn't available yet"
+                      style={{
+                        background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 10,
+                        padding: "9px 0", fontWeight: 600, color: appColors.grayLight, fontSize: 13, cursor: "not-allowed",
+                      }}
+                    >
+                      Link TikTok for verified stats — coming soon
+                    </button>
+                  }
+                />
               </div>
             </div>
 
@@ -773,6 +975,38 @@ export default function MyProfile() {
                 rows={4}
                 style={{ width: "100%", background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 14, color: appColors.navy, outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
               />
+            </div>
+            <div>
+              <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 2 }}>Niches</label>
+              <p style={{ color: appColors.grayLight, fontSize: 12, margin: "0 0 10px 0" }}>
+                Pick every niche you create content in — brands filter by these when searching for creators.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {/* Same canonical list campaigns use, so a creator's niches and
+                    a campaign's niche are directly comparable. */}
+                {Object.keys(NICHE_STYLES).map((n) => {
+                  const selected = nicheDraft.includes(n);
+                  const style = NICHE_STYLES[n];
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleNiche(n)}
+                      aria-pressed={selected}
+                      style={{
+                        background: selected ? style.bg : "transparent",
+                        color: selected ? style.color : appColors.gray,
+                        border: `1px solid ${selected ? style.color : appColors.border}`,
+                        fontWeight: 600, fontSize: 13, borderRadius: 9999,
+                        padding: "7px 16px", cursor: "pointer",
+                        transition: "background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out",
+                      }}
+                    >
+                      {n.charAt(0) + n.slice(1).toLowerCase()}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label style={{ color: appColors.gray, fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>About My Ideal Campaigns</label>

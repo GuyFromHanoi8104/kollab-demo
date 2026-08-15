@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SEARCH_STATUS, orderByIds, searchProfileIds } from "../../utils/searchApi";
 import { Link, useNavigate } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
@@ -7,6 +8,7 @@ import PremiumAIPanel from "../components/PremiumAIPanel";
 import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 import { formatRelativeTime } from "../../utils/relativeTime";
 
 // Rotates a few muted background tints across cards purely for visual
@@ -139,6 +141,12 @@ export default function DiscoverBrands() {
   const [activeIndustries, setActiveIndustries] = useState(new Set());
   const [sortBy, setSortBy] = useState("relevance"); // "relevance" | "campaigns"
   const [profileBrand, setProfileBrand] = useState(null);
+  // searchIds === null means "no search active" -- the page falls back to the
+  // full list plus the existing industry filtering, exactly as before.
+  const [searchText, setSearchText] = useState("");
+  const [searchIds, setSearchIds] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [searchNotice, setSearchNotice] = useState("");
 
   const { isLoggedIn, role, user } = useAuth();
 
@@ -153,7 +161,7 @@ export default function DiscoverBrands() {
       setLoading(true);
       const { data: brandRows } = await supabase
         .from("profiles")
-        .select("*")
+        .select(PROFILE_COLUMNS)
         .eq("role", "brand")
         .order("created_at", { ascending: false });
 
@@ -269,7 +277,37 @@ export default function DiscoverBrands() {
     setSortBy(SORT_OPTIONS[(i + 1) % SORT_OPTIONS.length]);
   };
 
-  const visibleBrands = brands
+  // Fires only on Enter or the Search button, never per keystroke -- each
+  // call embeds the query through OpenAI and costs real money.
+  const runSearch = async () => {
+    const trimmed = searchText.trim();
+    if (!trimmed) {
+      setSearchIds(null);
+      setSearchNotice("");
+      return;
+    }
+    setSearching(true);
+    setSearchNotice("");
+    const { status, ids, message } = await searchProfileIds(trimmed, "brand");
+    if (status === SEARCH_STATUS.OK) {
+      setSearchIds(ids);
+    } else {
+      setSearchIds(null);
+      setSearchNotice(message);
+    }
+    setSearching(false);
+  };
+
+  const clearSearch = () => {
+    setSearchText("");
+    setSearchIds(null);
+    setSearchNotice("");
+  };
+
+  // Search only reorders/narrows the base list; the industry filter and sort
+  // below are untouched and still apply on top.
+  const baseBrands = searchIds === null ? brands : orderByIds(brands, searchIds);
+  const visibleBrands = baseBrands
     .filter((b) => activeIndustries.size === 0 || activeIndustries.has(b.industry))
     .sort((a, b) => {
       if (sortBy === "campaigns") return b.activeCampaignsNum - a.activeCampaignsNum;
@@ -379,18 +417,65 @@ export default function DiscoverBrands() {
               </p>
             </div>
 
-            <div style={{ position: "relative" }}>
-              <div style={{ position: "absolute", left: 24, top: "50%", transform: "translateY(-50%)" }}>
-                <SearchIcon color={appColors.grayLight} />
+            <div>
+              <div style={{ position: "relative" }}>
+                <div style={{ position: "absolute", left: 24, top: "50%", transform: "translateY(-50%)" }}>
+                  <SearchIcon color={appColors.grayLight} />
+                </div>
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    if (!e.target.value.trim()) {
+                      setSearchIds(null);
+                      setSearchNotice("");
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") runSearch();
+                    if (e.key === "Escape") clearSearch();
+                  }}
+                  placeholder="Search brands by industry, location or keywords..."
+                  style={{
+                    background: "white", colorScheme: "light", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
+                    width: "100%", height: 64, padding: "0 130px 0 65px", fontSize: 16, color: appColors.navy, outline: "none", boxSizing: "border-box",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={runSearch}
+                  disabled={searching}
+                  style={{
+                    position: "absolute", right: 8, top: 8, bottom: 8, background: appColors.primary, border: "none", borderRadius: 12,
+                    padding: "0 24px", fontWeight: 700, color: "white", fontSize: 15,
+                    cursor: searching ? "default" : "pointer", opacity: searching ? 0.7 : 1,
+                  }}
+                >
+                  {searching ? "Searching…" : "Search"}
+                </button>
               </div>
-              <input
-                type="text"
-                placeholder="Search brands by name, industry, or keywords..."
-                style={{
-                  background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)",
-                  width: "100%", height: 64, padding: "0 25px 0 65px", fontSize: 16, color: appColors.navy, outline: "none",
-                }}
-              />
+
+              {(searching || searchNotice || searchIds !== null) && (
+                <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  {searching && <span style={{ color: appColors.grayLight, fontSize: 13 }}>Searching brands…</span>}
+                  {!searching && searchNotice && (
+                    <span style={{ color: "#b45309", fontSize: 13, fontWeight: 600 }}>{searchNotice}</span>
+                  )}
+                  {!searching && !searchNotice && searchIds !== null && (
+                    <>
+                      <span style={{ color: appColors.gray, fontSize: 13 }}>
+                        {searchIds.length === 0
+                          ? "No brands matched that search."
+                          : `${searchIds.length} result${searchIds.length === 1 ? "" : "s"} for "${searchText.trim()}"`}
+                      </span>
+                      <button type="button" onClick={clearSearch} style={{ background: "none", border: "none", color: appColors.primary, fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                        Clear search
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
