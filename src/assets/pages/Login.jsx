@@ -147,8 +147,10 @@ function Footer() {
               <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                 <p style={{ fontWeight: 800, color: colors.navy, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", margin: 0 }}>Legal</p>
                 <ul style={{ display: "flex", flexDirection: "column", gap: 12, listStyle: "none", padding: 0, margin: 0 }}>
-                  <li><a href="#" style={{ fontWeight: 500, color: colors.gray, fontSize: 12, textDecoration: "none" }}>Privacy Policy</a></li>
-                  <li><a href="#" style={{ fontWeight: 500, color: colors.gray, fontSize: 12, textDecoration: "none" }}>Terms of Service</a></li>
+                  {/* Login has its own inlined footer rather than reusing
+                      Footer.jsx, so these needed wiring separately. */}
+                  <li><Link to="/privacy" style={{ fontWeight: 500, color: colors.gray, fontSize: 12, textDecoration: "none" }}>Privacy Policy</Link></li>
+                  <li><Link to="/terms" style={{ fontWeight: 500, color: colors.gray, fontSize: 12, textDecoration: "none" }}>Terms of Service</Link></li>
                 </ul>
               </div>
             </div>

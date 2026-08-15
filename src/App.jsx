@@ -15,6 +15,8 @@ import SavedCreators from "./assets/pages/SavedCreators";
 import Messages from "./assets/pages/Messages";
 import MyProfile from "./assets/pages/MyProfile";
 import InstagramCallback from "./assets/pages/InstagramCallback";
+import Terms from "./assets/pages/Terms";
+import Privacy from "./assets/pages/Privacy";
 import ProtectedRoute from "./assets/components/ProtectedRoute";
 import { AuthProvider } from "./assets/context/AuthContext";
 
@@ -30,6 +32,10 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/discover" element={<DiscoverCreators />} />
+        {/* Public and unauthenticated: Sign Up links to these before an
+            account exists, and they must stay reachable to logged-out users. */}
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/creator/:id" element={<CreatorProfile />} />
         <Route path="/campaigns" element={<CampaignsBrowse />} />
         <Route path="/discover-brands" element={<DiscoverBrands />} />
