@@ -126,8 +126,11 @@ function SearchCard({ mode, onModeChange }) {
 
   // Only on Enter or the Search button -- never per keystroke, since each
   // call embeds the query through OpenAI and costs real money.
-  const runSearch = async () => {
-    const trimmed = query.trim();
+  // Takes an optional override so a Trending chip can search its own tag
+  // immediately -- setQuery is async, so reading `query` back on the next line
+  // would search whatever was there before the click.
+  const runSearch = async (raw) => {
+    const trimmed = (raw ?? query).trim();
     if (!trimmed) return;
 
     // Campaigns are not in the search index (Weaviate holds profiles only),
@@ -264,10 +267,18 @@ function SearchCard({ mode, onModeChange }) {
 
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontWeight: 700, color: colors.gray, fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase" }}>Trending:</span>
+        {/* A shortcut into the search rather than a sticky filter, so there's
+            no active state to show: it fills the box and searches, and in
+            campaigns mode runSearch navigates to /campaigns?q= exactly as
+            typing the same word would. */}
         {TRENDING_TAGS.map((tag) => (
           <button
             key={tag}
             type="button"
+            onClick={() => {
+              setQuery(tag);
+              runSearch(tag);
+            }}
             style={{
               background: "rgba(255,255,255,0.6)",
               border: "1px solid rgba(195,198,215,0.2)",

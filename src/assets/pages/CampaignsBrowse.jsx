@@ -15,7 +15,21 @@ const colors = {
   border: "rgba(195,197,215,0.4)",
 };
 
-const FILTER_CHIPS = ["Category", "Platform", "Budget", "Location", "Campaign Type"];
+// Filter chips used to be the static labels "Category", "Platform", "Budget",
+// "Location", "Campaign Type" -- five buttons that looked like filters and did
+// nothing. They're now derived from the campaigns actually on screen, so the
+// list can only ever offer refinements that return something.
+const SORT_OPTIONS = ["newest", "budget", "deadline"];
+const SORT_LABELS = {
+  newest: "Newest First",
+  budget: "Highest Budget",
+  deadline: "Deadline: Soonest",
+};
+
+/** Highest number the campaign advertises, for sorting. */
+function budgetCeiling(campaign) {
+  return campaign.budget_max ?? campaign.budget_min ?? null;
+}
 
 const STATS = [
   { value: "1,200+", label: "ACTIVE CREATORS" },
@@ -288,6 +302,9 @@ export default function CampaignsBrowse() {
   // client-side filter below rather than the semantic search API.
   const [searchParams] = useSearchParams();
   const [searchText, setSearchText] = useState(searchParams.get("q") || "");
+  const [activeNiches, setActiveNiches] = useState(new Set());
+  const [activePlatforms, setActivePlatforms] = useState(new Set());
+  const [sortBy, setSortBy] = useState("newest");
 
   // This was missing entirely -- MarketingNavBar defaults isLoggedIn to
   // false when not passed a prop, so this page always showed the logged-out
@@ -384,23 +401,82 @@ export default function CampaignsBrowse() {
     });
   };
 
-  const featuredCampaign = campaigns[0] ?? null;
-  const featuredView = featuredCampaign ? toOpportunityView(featuredCampaign, brands) : null;
-  const restViews = campaigns.slice(1).map((c) => toOpportunityView(c, brands));
+  const toggleNiche = (n) =>
+    setActiveNiches((prev) => {
+      const next = new Set(prev);
+      next.has(n) ? next.delete(n) : next.add(n);
+      return next;
+    });
+  const togglePlatform = (p) =>
+    setActivePlatforms((prev) => {
+      const next = new Set(prev);
+      next.has(p) ? next.delete(p) : next.add(p);
+      return next;
+    });
+  const cycleSort = () => setSortBy(SORT_OPTIONS[(SORT_OPTIONS.indexOf(sortBy) + 1) % SORT_OPTIONS.length]);
+  const clearFilters = () => {
+    setActiveNiches(new Set());
+    setActivePlatforms(new Set());
+  };
 
-  // Searching covers every campaign, including the featured one. It used to
-  // filter campaigns.slice(1) only, so the featured campaign could never
-  // match -- with a single campaign that meant every search reported "no
-  // matches" while that campaign sat visible directly above the message.
+  // Offered chips come from the campaigns actually loaded, so a filter can
+  // never produce an empty list on its own.
+  const ALL_NICHES = [...new Set(campaigns.map((c) => c.niche).filter(Boolean))];
+  const ALL_PLATFORMS = [...new Set(campaigns.flatMap((c) => c.platforms ?? []))];
+
+  // Campaign and view are carried together: filtering and sorting need the raw
+  // columns (niche, platforms, budget, deadline) while rendering needs the
+  // view, and pairing them avoids looking each other up by id.
+  const pairs = campaigns.map((campaign) => ({ campaign, view: toOpportunityView(campaign, brands) }));
+
   const query = searchText.trim().toLowerCase();
   const searchActive = query.length > 0;
-  const allViews = campaigns.map((c) => toOpportunityView(c, brands));
-  const searchResults = searchActive
-    ? allViews.filter((opp) =>
-        [opp.brand, opp.title, opp.category, opp.description, (opp.tags || []).join(" ")]
-          .some((field) => String(field || "").toLowerCase().includes(query))
-      )
-    : [];
+  const filtersActive = activeNiches.size > 0 || activePlatforms.size > 0;
+
+  // Searching and filtering cover every campaign, including the featured one.
+  // Search used to filter campaigns.slice(1) only, so the featured campaign
+  // could never match -- with a single campaign that meant every search
+  // reported "no matches" while that campaign sat visible directly above the
+  // message. Filters would reintroduce exactly that bug if applied the same way.
+  const matching = pairs.filter(({ campaign, view }) => {
+    if (activeNiches.size > 0 && !activeNiches.has(campaign.niche)) return false;
+    // Any-of, not all-of: picking Instagram and TikTok means "either", which is
+    // how a creator scanning for work actually thinks.
+    if (activePlatforms.size > 0 && !(campaign.platforms ?? []).some((p) => activePlatforms.has(p))) return false;
+    if (!searchActive) return true;
+    return [view.brand, view.title, view.category, view.description, (view.tags || []).join(" ")]
+      .some((field) => String(field || "").toLowerCase().includes(query));
+  });
+
+  const sorted = [...matching].sort((a, b) => {
+    if (sortBy === "budget") {
+      // Campaigns that advertise no budget sort last rather than as zero --
+      // "not stated" isn't "cheapest".
+      const av = budgetCeiling(a.campaign);
+      const bv = budgetCeiling(b.campaign);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return bv - av;
+    }
+    if (sortBy === "deadline") {
+      const ad = a.campaign.deadline;
+      const bd = b.campaign.deadline;
+      if (!ad && !bd) return 0;
+      if (!ad) return 1;
+      if (!bd) return -1;
+      return new Date(ad) - new Date(bd);
+    }
+    return 0; // "newest" -- the query already returns created_at descending
+  });
+
+  // The featured hero is the default browse view. Any active refinement --
+  // search, filter, or a non-default sort -- switches to a plain ranked list,
+  // because a pinned card sitting above a sorted grid reads as a sort bug.
+  const listMode = searchActive || filtersActive || sortBy !== "newest";
+  const featuredCampaign = listMode ? null : campaigns[0] ?? null;
+  const featuredView = featuredCampaign ? toOpportunityView(featuredCampaign, brands) : null;
+  const visibleViews = listMode ? sorted.map((p) => p.view) : sorted.slice(1).map((p) => p.view);
 
   return (
     <div
@@ -486,25 +562,47 @@ export default function CampaignsBrowse() {
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "center", maxWidth: 1024, marginTop: 20 }}>
-          <button type="button" style={{ background: colors.blue, border: "none", borderRadius: 9999, padding: "10px 20px", fontWeight: 600, color: "white", fontSize: 14, cursor: "pointer", boxShadow: "0px 4px 6px -1px rgba(37,99,235,0.2)" }}>
-            All Filters
-          </button>
-          {FILTER_CHIPS.map((chip) => (
-            <button key={chip} type="button" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 9999, padding: "11px 21px", fontWeight: 500, color: colors.gray, fontSize: 14, cursor: "pointer" }}>
-              {chip}
+          {[...ALL_NICHES.map((v) => ({ value: v, on: activeNiches.has(v), toggle: () => toggleNiche(v) })),
+            ...ALL_PLATFORMS.map((v) => ({ value: v, on: activePlatforms.has(v), toggle: () => togglePlatform(v) }))
+          ].map(({ value, on, toggle }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={toggle}
+              aria-pressed={on}
+              style={{
+                background: on ? colors.blue : "white",
+                border: on ? "none" : `1px solid ${colors.border}`,
+                borderRadius: 9999,
+                padding: on ? "11px 21px" : "10px 20px",
+                fontWeight: on ? 700 : 500,
+                color: on ? "white" : colors.gray,
+                fontSize: 14,
+                cursor: "pointer",
+                boxShadow: on ? "0px 4px 6px -1px rgba(37,99,235,0.2)" : "none",
+              }}
+            >
+              {value}
             </button>
           ))}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 16 }}>
+
+          {filtersActive && (
+            <button type="button" onClick={clearFilters} style={{ background: "none", border: "none", color: colors.grayLight, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+              Clear filters
+            </button>
+          )}
+
+          <button type="button" onClick={cycleSort} style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 16, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             <span style={{ color: colors.gray, fontSize: 14 }}>Sort By:</span>
-            <span style={{ color: colors.navy, fontWeight: 700, fontSize: 14 }}>Newest First</span>
+            <span style={{ color: colors.navy, fontWeight: 700, fontSize: 14 }}>{SORT_LABELS[sortBy]}</span>
             <SortChevron />
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* Hidden while searching -- the featured campaign is part of the
-          result set now, so leaving the hero up would show it twice. */}
-      {featuredView && !searchActive && (
+      {/* featuredView is already null under any active refinement (see
+          listMode), so this only renders in the default browse view. */}
+      {featuredView && (
         <div style={{ maxWidth: 1280, margin: "48px auto 0 auto", padding: "0 24px" }}>
           <div className="kollab-campaigns-featured-split" style={{ background: "white", border: `1px solid ${colors.border}`, borderRadius: 24, boxShadow: "0px 12px 32px -8px rgba(37,99,235,0.08)", overflow: "hidden", display: "flex" }}>
             <div className="kollab-campaigns-featured-content" style={{ flex: 1, padding: 56, display: "flex", flexDirection: "column", gap: 24 }}>
@@ -564,11 +662,11 @@ export default function CampaignsBrowse() {
       <div className="kollab-campaigns-new-opps-header" style={{ maxWidth: 1280, margin: "56px auto 0 auto", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <h3 style={{ fontWeight: 800, color: colors.navy, fontSize: 30, letterSpacing: -0.75, margin: 0 }}>
-            {searchActive ? `Results for "${searchText.trim()}"` : "New Opportunities"}
+            {searchActive ? `Results for "${searchText.trim()}"` : listMode ? "All Opportunities" : "New Opportunities"}
           </h3>
           <p style={{ color: colors.gray, fontSize: 16, margin: "4px 0 0 0" }}>
-            {searchActive
-              ? `${searchResults.length} campaign${searchResults.length === 1 ? "" : "s"} matched.`
+            {listMode
+              ? `${sorted.length} campaign${sorted.length === 1 ? "" : "s"}${searchActive || filtersActive ? " matched" : ""}, sorted by ${SORT_LABELS[sortBy].toLowerCase()}.`
               : "Freshly posted campaigns tailored for your niche."}
           </p>
         </div>
@@ -598,10 +696,8 @@ export default function CampaignsBrowse() {
             return <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>No active campaigns right now — check back soon.</div>;
           }
 
-          const filteredOpportunities = searchActive ? searchResults : restViews;
-
-          return filteredOpportunities.length > 0 ? (
-            filteredOpportunities.map((opp) => (
+          return visibleViews.length > 0 ? (
+            visibleViews.map((opp) => (
               <OpportunityCard
                 key={opp.id}
                 opp={opp}
@@ -618,7 +714,11 @@ export default function CampaignsBrowse() {
             ))
           ) : (
             <div style={{ width: "100%", textAlign: "center", color: colors.grayLight, fontSize: 14, padding: 40 }}>
-              {searchActive ? `No campaigns match "${searchText.trim()}".` : "No additional opportunities right now — check back soon."}
+              {searchActive
+                ? `No campaigns match "${searchText.trim()}"${filtersActive ? " with those filters" : ""}.`
+                : filtersActive
+                ? "No campaigns match those filters."
+                : "No additional opportunities right now — check back soon."}
             </div>
           );
         })()}
