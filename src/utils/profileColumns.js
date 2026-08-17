@@ -36,4 +36,9 @@ export const PROFILE_COLUMNS = [
   // the client to tell a verified connection from a self-report.
   "instagram_business_account_id",
   "instagram_connected_at",
+  // Same for TikTok. Its two token columns are deliberately absent -- see
+  // 20260817_tiktok_connection; they are never granted to anon/authenticated,
+  // so naming them here would break every query on this list.
+  "tiktok_open_id",
+  "tiktok_connected_at",
 ].join(", ");

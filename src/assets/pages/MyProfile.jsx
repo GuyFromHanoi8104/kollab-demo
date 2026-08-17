@@ -7,6 +7,7 @@ import AvatarImage from "../components/AvatarImage";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { buildInstagramOAuthUrl, isInstagramConfigured } from "../../utils/instagramAuth";
+import { buildTikTokOAuthUrl, isTikTokConfigured } from "../../utils/tiktokAuth";
 import { formatVND } from "../../utils/currency";
 import { formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
 
@@ -272,6 +273,9 @@ export default function MyProfile() {
   const [igRefreshing, setIgRefreshing] = useState(false);
   const [igError, setIgError] = useState("");
   const [igDisconnecting, setIgDisconnecting] = useState(false);
+  const [tkRefreshing, setTkRefreshing] = useState(false);
+  const [tkError, setTkError] = useState("");
+  const [tkDisconnecting, setTkDisconnecting] = useState(false);
   const [seededProfileId, setSeededProfileId] = useState(null);
   const [quickNote, setQuickNote] = useState(PROFILE_EXTRAS.quickNote);
   const [tiktokFollowers, setTiktokFollowers] = useState("");
@@ -360,6 +364,55 @@ export default function MyProfile() {
     setIgDisconnecting(false);
     if (error || data?.error) {
       setIgError("Couldn't disconnect Instagram just now. Please try again.");
+      return;
+    }
+    await refreshProfile();
+  };
+
+  // A stored tiktok_open_id is the marker for a real TikTok connection, exactly
+  // as instagram_business_account_id is for Instagram. The client cannot write
+  // either one, so the badge can't be self-certified.
+  const tkConnected = !!profile?.tiktok_open_id;
+
+  // TikTok's access token lives 24 hours, so unlike Instagram this refresh is
+  // near-guaranteed to be needed on every visit -- it spends the refresh token
+  // rather than reusing a stored access token. Same fire-and-forget shape: the
+  // stored count is already on screen and a failure shouldn't blank the page.
+  useEffect(() => {
+    if (!user || !tkConnected) return;
+    let active = true;
+    (async () => {
+      setTkRefreshing(true);
+      const { data, error } = await supabase.functions.invoke("tiktok-connect", {
+        body: { action: "refresh" },
+      });
+      if (!active) return;
+      setTkRefreshing(false);
+      if (error || data?.error) {
+        setTkError("Couldn't refresh from TikTok just now — showing the last known count.");
+        return;
+      }
+      setTkError("");
+      if (data?.follower_count != null) await refreshProfile();
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, tkConnected]);
+
+  const disconnectTikTok = async () => {
+    if (!window.confirm(
+      "Disconnect TikTok? Your follower count will go back to being self-reported " +
+      "until you reconnect."
+    )) return;
+
+    setTkDisconnecting(true);
+    setTkError("");
+    const { data, error } = await supabase.functions.invoke("tiktok-connect", {
+      body: { action: "disconnect" },
+    });
+    setTkDisconnecting(false);
+    if (error || data?.error) {
+      setTkError("Couldn't disconnect TikTok just now. Please try again.");
       return;
     }
     await refreshProfile();
@@ -644,14 +697,19 @@ export default function MyProfile() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {profile && (hasAnyStats(profile) || igConnected) && (
+              {profile && (hasAnyStats(profile) || igConnected || tkConnected) && (
                 <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
                   {igRefreshing && <span style={{ color: appColors.grayLight, fontSize: 12 }}>Refreshing from Instagram…</span>}
+                  {tkRefreshing && <span style={{ color: appColors.grayLight, fontSize: 12 }}>Refreshing from TikTok…</span>}
                   <VerifiedBadge verified={!!profile.stats_verified} instagramVerified={igConnected} />
                 </div>
               )}
               <div className="kollab-my-profile-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-                <StatCard label="TIKTOK FOLLOWERS" value={formatCount(profile?.tiktok_followers)} color={appColors.navy} />
+                <StatCard
+                  label={tkConnected ? "TIKTOK FOLLOWERS ✓" : "TIKTOK FOLLOWERS"}
+                  value={formatCount(profile?.tiktok_followers)}
+                  color={tkConnected ? "#16a34a" : appColors.navy}
+                />
                 <StatCard label="TIKTOK AVG VIEWS" value={formatCount(profile?.tiktok_avg_views)} color={appColors.navy} />
                 <StatCard
                   label={igConnected ? "IG FOLLOWERS ✓" : "IG FOLLOWERS"}
@@ -829,29 +887,54 @@ export default function MyProfile() {
                   }
                 />
 
-                {/* TikTok has no OAuth integration yet, so its numbers stay
-                    self-reported. The button is deliberately inert rather than
-                    hidden: it tells creators verification is coming without
-                    pretending it already works. */}
+                {/* Only the follower count can be verified. tiktok_avg_views
+                    stays self-reported: user.info.stats returns total likes and
+                    video count, not per-video views, so an average can't be
+                    derived from it honestly. */}
                 <PlatformCard
                   name="TikTok"
-                  handle="Self-reported"
+                  handle={tkConnected ? "Connected account" : "Self-reported"}
                   bg={appColors.navy}
                   followers={formatCount(profile?.tiktok_followers)}
                   avgViews={formatCount(profile?.tiktok_avg_views)}
-                  verified={false}
+                  verified={tkConnected}
                   action={
-                    <button
-                      type="button"
-                      disabled
-                      title="TikTok verification isn't available yet"
-                      style={{
-                        background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 10,
-                        padding: "9px 0", fontWeight: 600, color: appColors.grayLight, fontSize: 13, cursor: "not-allowed",
-                      }}
-                    >
-                      Link TikTok for verified stats — coming soon
-                    </button>
+                    <>
+                    {tkError && (
+                      <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{tkError}</div>
+                    )}
+                    {tkConnected ? (
+                      <button
+                        type="button"
+                        onClick={disconnectTikTok}
+                        disabled={tkDisconnecting}
+                        style={{
+                          background: "none", border: `1px solid ${appColors.border}`, borderRadius: 10,
+                          padding: "9px 0", fontWeight: 600, color: appColors.gray, fontSize: 13,
+                          cursor: tkDisconnecting ? "default" : "pointer", opacity: tkDisconnecting ? 0.6 : 1,
+                        }}
+                      >
+                        {tkDisconnecting ? "Disconnecting…" : "Disconnect TikTok"}
+                      </button>
+                    ) : isTikTokConfigured() ? (
+                      <button
+                        type="button"
+                        onClick={() => { window.location.href = buildTikTokOAuthUrl(); }}
+                        style={{
+                          background: appColors.navy, border: "none", borderRadius: 10,
+                          padding: "10px 0", fontWeight: 700, color: "white", fontSize: 13, cursor: "pointer",
+                        }}
+                      >
+                        Connect TikTok for verified stats
+                      </button>
+                    ) : (
+                      // Better to say so than to send someone to a TikTok login
+                      // that fails on a missing client key.
+                      <p style={{ color: appColors.grayLight, fontSize: 12, margin: 0, textAlign: "center" }}>
+                        TikTok connection isn't configured yet — VITE_TIKTOK_CLIENT_KEY is unset.
+                      </p>
+                    )}
+                    </>
                   }
                 />
               </div>

@@ -15,6 +15,7 @@ import SavedCreators from "./assets/pages/SavedCreators";
 import Messages from "./assets/pages/Messages";
 import MyProfile from "./assets/pages/MyProfile";
 import InstagramCallback from "./assets/pages/InstagramCallback";
+import TikTokCallback from "./assets/pages/TikTokCallback";
 import Terms from "./assets/pages/Terms";
 import Privacy from "./assets/pages/Privacy";
 import ProtectedRoute from "./assets/components/ProtectedRoute";
@@ -49,6 +50,7 @@ export default function App() {
             token before it could ever be read. The page checks the session
             itself instead. */}
         <Route path="/instagram/callback" element={<InstagramCallback />} />
+        <Route path="/tiktok/callback" element={<TikTokCallback />} />
       </Routes>
     </BrowserRouter>
     </AuthProvider>
