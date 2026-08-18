@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
+import MarketingNavBar from "../components/MarketingNavBar";
+import Footer from "../components/Footer";
 import { appColors } from "../components/appColors";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
@@ -412,6 +414,13 @@ export default function CreatorProfile() {
   }, [user, profile]);
 
   const handleToggleSave = async () => {
+    // Guests used to hit the early return and get nothing at all -- a button
+    // that visibly does nothing is worse than one that asks for an account,
+    // which is what Invite and Message already do.
+    if (!isLoggedIn) {
+      navigate("/login");
+      return;
+    }
     if (!user || !profile) return;
     if (saved) {
       const { error } = await supabase.from("saved_profiles").delete().eq("owner_id", user.id).eq("saved_profile_id", profile.id);
@@ -422,8 +431,27 @@ export default function CreatorProfile() {
     }
   };
 
+  // /creator/:id is a public route, so the chrome has to follow the session
+  // rather than assume one. A guest arriving from Discover (or a search
+  // engine) previously landed inside the app shell -- sidebar, workspace top
+  // bar -- which reads as having wandered into someone else's dashboard.
+  const showAppShell = isLoggedIn;
+  const shellPad = {
+    marginLeft: showAppShell ? 256 : 0,
+    // The marketing nav is absolutely positioned, so guests need clearance
+    // under it the same way the other public pages give themselves.
+    paddingTop: showAppShell ? 96 : 128,
+    paddingLeft: 32,
+    paddingRight: 32,
+  };
+
   const displayName = profile?.name || "Unnamed creator";
-  const handle = profile?.handle || "";
+  // The handle is the creator's contact route, so it stays behind the account
+  // wall -- Discover Creators hides it for the same reason, and showing it one
+  // click later would defeat that entirely. Everything else on this page
+  // (name, niches, location, bio, follower counts) stays public, because that
+  // is what lets a brand evaluate a creator before signing up.
+  const handle = isLoggedIn ? profile?.handle || "" : "";
   const niches = profile?.niche || [];
   const location = profile?.location || "Location not set";
   const bio = profile?.bio || "This creator hasn't added a bio yet.";
@@ -487,15 +515,21 @@ export default function CreatorProfile() {
         .kollab-scroll-row::-webkit-scrollbar-track { background: transparent; }
       `}</style>
 
-      <AppSidebar activeItem="discover" />
-      <AppTopBar left={<SearchBox placeholder="Search creators, niches, or keywords..." />} />
+      {showAppShell ? (
+        <>
+          <AppSidebar activeItem="discover" />
+          <AppTopBar left={<SearchBox placeholder="Search creators, niches, or keywords..." />} />
+        </>
+      ) : (
+        <MarketingNavBar activeTab="kols" />
+      )}
 
       {loading ? (
-        <main className="kollab-creator-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingLeft: 32, paddingRight: 32 }}>
+        <main className="kollab-creator-profile-main" style={shellPad}>
           <div style={{ maxWidth: 1280, color: appColors.grayLight, fontSize: 14, textAlign: "center", padding: 48 }}>Loading creator profile…</div>
         </main>
       ) : notFound ? (
-        <main className="kollab-creator-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingLeft: 32, paddingRight: 32 }}>
+        <main className="kollab-creator-profile-main" style={shellPad}>
           <div style={{ maxWidth: 1280, background: "white", border: `1px solid ${appColors.border}`, borderRadius: 24, padding: 48, textAlign: "center" }}>
             <h1 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, margin: 0 }}>Creator not found</h1>
             <p style={{ color: appColors.grayLight, fontSize: 14, marginTop: 8 }}>This profile doesn't exist or may have been removed.</p>
@@ -505,7 +539,7 @@ export default function CreatorProfile() {
           </div>
         </main>
       ) : (
-      <main className="kollab-creator-profile-main" style={{ marginLeft: 256, paddingTop: 96, paddingBottom: 64, paddingLeft: 32, paddingRight: 32 }}>
+      <main className="kollab-creator-profile-main" style={{ ...shellPad, paddingBottom: 64 }}>
         <div className="kollab-creator-profile-split" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, maxWidth: 1280 }}>
           {/* Left column */}
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
@@ -523,7 +557,17 @@ export default function CreatorProfile() {
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
                     <h1 style={{ fontWeight: 800, color: appColors.navy, fontSize: 36, letterSpacing: -0.9, margin: 0 }}>{displayName}</h1>
-                    {handle && <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16, marginTop: 6 }}>{handle}</div>}
+                    {handle ? (
+                      <div style={{ color: appColors.primary, fontWeight: 600, fontSize: 16, marginTop: 6 }}>{handle}</div>
+                    ) : !isLoggedIn && profile?.handle ? (
+                      // Say that something is being withheld rather than
+                      // silently omitting it -- a guest who can see there's a
+                      // contact behind the wall has a reason to sign up, and
+                      // a blank space gives them none.
+                      <Link to="/login" style={{ display: "inline-block", color: appColors.grayLight, fontWeight: 600, fontSize: 14, marginTop: 6, textDecoration: "none", borderBottom: `1px dashed ${appColors.border}` }}>
+                        Sign in to see contact details
+                      </Link>
+                    ) : null}
                     {niches.length > 0 && (
                       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                         {niches.map((tag) => (
@@ -685,6 +729,11 @@ export default function CreatorProfile() {
         </div>
       </main>
       )}
+
+      {/* Guests get the marketing shell top and bottom, so the page reads as
+          part of the public site rather than a workspace they've strayed into.
+          The app shell has its own sidebar navigation and needs no footer. */}
+      {!showAppShell && <Footer />}
 
       {modalOpen && profile && <InviteModal creator={{ id: profile.id, name: displayName, handle, niche: niches, stats: profile }} onClose={() => setModalOpen(false)} />}
     </div>
