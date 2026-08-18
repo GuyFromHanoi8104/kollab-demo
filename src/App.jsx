@@ -19,12 +19,16 @@ import TikTokCallback from "./assets/pages/TikTokCallback";
 import Terms from "./assets/pages/Terms";
 import Privacy from "./assets/pages/Privacy";
 import ProtectedRoute from "./assets/components/ProtectedRoute";
+import PageTransition from "./assets/components/PageTransition";
 import { AuthProvider } from "./assets/context/AuthContext";
 
 export default function App() {
   return (
     <AuthProvider>
     <BrowserRouter>
+      {/* Inside BrowserRouter because it reads the location; outside Routes so
+          one wrapper covers every page rather than each route repeating it. */}
+      <PageTransition>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
@@ -52,6 +56,7 @@ export default function App() {
         <Route path="/instagram/callback" element={<InstagramCallback />} />
         <Route path="/tiktok/callback" element={<TikTokCallback />} />
       </Routes>
+      </PageTransition>
     </BrowserRouter>
     </AuthProvider>
   );
