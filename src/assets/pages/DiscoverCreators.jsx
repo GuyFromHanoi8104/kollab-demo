@@ -369,8 +369,13 @@ export default function DiscoverCreators() {
         @media (max-width: 768px) {
           .kollab-discover-hero { padding: 96px 16px 0 16px !important; }
           .kollab-discover-heading { font-size: 32px !important; letter-spacing: -0.8px !important; }
-          .kollab-discover-search-input { padding-right: 16px !important; }
-          .kollab-discover-search-btn { display: none !important; }
+          /* The button used to be display:none here, which left no way to run
+             a search on a phone at all -- this page only searches on submit,
+             so the only remaining trigger was the keyboard's Go key, which
+             isn't discoverable and isn't reliable across Android keyboards.
+             It shrinks instead of disappearing. */
+          .kollab-discover-search-input { padding-right: 104px !important; }
+          .kollab-discover-search-btn { padding: 0 18px !important; font-size: 14px !important; }
           .kollab-discover-cta { padding: 40px 24px !important; }
           .kollab-discover-cta h2 { font-size: 32px !important; }
         }
@@ -397,7 +402,10 @@ export default function DiscoverCreators() {
             <SearchIcon color={colors.grayLight} />
           </div>
           <input
-            type="text"
+            type="search"
+            // Makes a phone keyboard show a Search key rather than a newline,
+            // so the implicit form submit is at least offered as well.
+            enterKeyHint="search"
             className="kollab-discover-search-input"
             value={searchText}
             onChange={(e) => {
