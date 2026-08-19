@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { SearchBox } from "../components/AppTopBar";
@@ -9,6 +9,10 @@ import ReviewApplicationModal from "../components/ReviewApplicationModal";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
 import { formatVND } from "../../utils/currency";
+import { PROFILE_COLUMNS } from "../../utils/profileColumns";
+import { NICHE_STYLES } from "../components/nicheStyles";
+import { combinedFollowers, formatCount, formatEngagement } from "../../utils/creatorStats";
+import { formatRelativeTime } from "../../utils/relativeTime";
 
 // applications.created_at -> a relative "NEW" / "2D AGO" style badge, since
 // there's no real "seen/unseen" column to key off of.
@@ -19,63 +23,49 @@ function applicationBadge(createdAt) {
   return { badge: `${days}D AGO`, badgeBg: appColors.primaryLight, badgeColor: appColors.grayLight };
 }
 
-function InstagramLogo() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-      <defs>
-        <linearGradient id="igGradient" x1="0" y1="24" x2="24" y2="0">
-          <stop offset="0%" stopColor="#feda75" />
-          <stop offset="30%" stopColor="#fa7e1e" />
-          <stop offset="60%" stopColor="#d62976" />
-          <stop offset="100%" stopColor="#962fbf" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="url(#igGradient)" />
-      <rect x="6.5" y="6.5" width="11" height="11" rx="3.5" stroke="white" strokeWidth="1.5" />
-      <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="1.5" />
-      <circle cx="16.3" cy="7.7" r="0.9" fill="white" />
-    </svg>
-  );
+// InstagramLogo and TikTokLogo lived here purely for the Connected Accounts
+// card, which a brand never had any use for. Removed with it.
+
+// Matches the creator-side limit in MyProfile, so the two upload paths behave
+// the same way rather than one silently accepting what the other rejects.
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+const STAT_ICON_BG = {
+  campaigns: "#dce1ff",
+  invites: "#eaddff",
+  applications: "#ffdcc6",
+  saved: appColors.primaryLight,
+};
+
+const CAMPAIGN_STATUS_META = {
+  active: { label: "Active", color: "#16a34a", dot: "#22c55e" },
+  paused: { label: "Paused", color: "#ea580c", dot: "#f97316" },
+  closed: { label: "Closed", color: appColors.grayLight, dot: appColors.border },
+};
+
+function campaignBudget(c) {
+  const { budget_min: min, budget_max: max } = c;
+  if (min != null && max != null) return `${formatVND(min)} – ${formatVND(max)}`;
+  if (max != null) return `Up to ${formatVND(max)}`;
+  if (min != null) return `From ${formatVND(min)}`;
+  return "Budget TBD";
 }
 
-function TikTokLogo() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="#010101" />
-      <path d="M15.4 6.7c.3 1.5 1.2 2.5 2.7 2.7v2c-.9-.1-1.8-.4-2.7-.9v3.8a3.6 3.6 0 1 1-3.6-3.6c.2 0 .4 0 .6.03v2a1.5 1.5 0 1 0 1 1.45V6.7h2Z" fill="#25F4EE" transform="translate(-0.4,0.3)" />
-      <path d="M15.4 6.7c.3 1.5 1.2 2.5 2.7 2.7v2c-.9-.1-1.8-.4-2.7-.9v3.8a3.6 3.6 0 1 1-3.6-3.6c.2 0 .4 0 .6.03v2a1.5 1.5 0 1 0 1 1.45V6.7h2Z" fill="#FE2C55" transform="translate(0.4,-0.3)" />
-      <path d="M15.4 6.7c.3 1.5 1.2 2.5 2.7 2.7v2c-.9-.1-1.8-.4-2.7-.9v3.8a3.6 3.6 0 1 1-3.6-3.6c.2 0 .4 0 .6.03v2a1.5 1.5 0 1 0 1 1.45V6.7h2Z" fill="white" />
-    </svg>
-  );
+// "Recommended" has to mean something checkable. A brand's industry is drawn
+// from the same niche vocabulary creators pick from, so a creator working in
+// the brand's industry is a real match and one in the same city is a weaker
+// one. Where the brand has set neither there is nothing to match on, so the
+// list falls back to the best-documented creators -- and the subheading says
+// which of the two you are looking at rather than claiming both.
+function recommendationScore(creator, brand) {
+  const industry = (brand?.industry || "").trim().toLowerCase();
+  const nicheMatch = industry && (creator.niche || []).some((n) => n.toLowerCase() === industry);
+  const sameCity =
+    !!creator.location &&
+    !!brand?.location &&
+    creator.location.trim().toLowerCase() === brand.location.trim().toLowerCase();
+  return (nicheMatch ? 2 : 0) + (sameCity ? 1 : 0);
 }
-
-const STATS = [
-  { value: "4", label: "Active Campaigns", badge: "+2 new", badgeColor: "#16a34a", iconBg: "#dce1ff" },
-  { value: "27", label: "Contact Requests Sent", badge: "Since last month", badgeColor: appColors.grayLight, iconBg: "#eaddff" },
-  { value: "13", label: "New KOL Applications", badge: "Review Now", badgeColor: appColors.primary, iconBg: "#ffdcc6" },
-  { value: "56", label: "Saved Creators", badge: "Active list", badgeColor: appColors.grayLight, iconBg: appColors.primaryLight },
-];
-
-// Budget figures are illustrative placeholders scaled to a plausible VND
-// magnitude, not verified Vietnam KOL market rates -- sanity-check before
-// treating these as authoritative.
-const CAMPAIGNS = [
-  { name: "Protein Powder Launch", niche: "FITNESS", nicheBg: "#dce1ff", nicheColor: "#003cad", budget: formatVND(75000000), apps: 18, status: "Active", statusColor: "#16a34a", dotColor: "#22c55e" },
-  { name: "Healthy Snacks", niche: "FOOD", nicheBg: "#eaddff", nicheColor: "#5a00c6", budget: formatVND(37500000), apps: 7, status: "Reviewing", statusColor: "#ea580c", dotColor: "#f97316" },
-];
-
-const RECOMMENDED_CREATORS = [
-  { id: "thanh-huyen", name: "Thanh Huyen", role: "Wellness & Yoga", followers: "45.2K", engagement: "5.4%", initial: "T" },
-  { id: "minh-tu", name: "Minh Tu", role: "Professional Athlete", followers: "120K", engagement: "3.2%", initial: "M" },
-  { id: "an-nguyen", name: "An Nguyen", role: "Lifestyle & Travel", followers: "89K", engagement: "6.1%", initial: "A" },
-  { id: "bich-phuong", name: "Bich Phuong", role: "Beauty Specialist", followers: "215K", engagement: "4.8%", initial: "B" },
-];
-
-const ACTIVITY = [
-  { title: "Hoang Yen", detail: "Applied to Protein Powder Launch", time: "2 hours ago", dot: appColors.primary },
-  { title: "Campaign Milestone", detail: "Healthy Snacks reached 50k reach", time: "5 hours ago", dot: "#712ae2" },
-  { title: "Account Security", detail: "New login detected from Ho Chi Minh City", time: "Yesterday", dot: appColors.border, dim: true },
-];
 
 function StatCard({ stat }) {
   return (
@@ -91,8 +81,13 @@ function StatCard({ stat }) {
 function CreatorCard({ creator }) {
   return (
     <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", padding: 25, display: "flex", flexDirection: "column", gap: 16, minWidth: 230, boxSizing: "border-box", flexShrink: 0 }}>
-      <div style={{ background: "#e2e8f0", borderRadius: 12, width: 230, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontWeight: 700, color: appColors.grayLight, fontSize: 32 }}>{creator.initial}</span>
+      <div style={{ background: "#e2e8f0", borderRadius: 12, width: 230, height: 160, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        <AvatarImage
+          url={creator.avatarUrl}
+          size="100%"
+          radius={12}
+          fallback={<span style={{ fontWeight: 700, color: appColors.grayLight, fontSize: 32 }}>{creator.initial}</span>}
+        />
       </div>
       <div>
         <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{creator.name}</div>
@@ -156,11 +151,18 @@ function ApplicationCard({ app, onReview, saved, onToggleSave }) {
 }
 
 export default function Dashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loadingApps, setLoadingApps] = useState(true);
   const [reviewingApp, setReviewingApp] = useState(null);
   const [savedApplications, setSavedApplications] = useState(new Set());
+  const [campaignAppCounts, setCampaignAppCounts] = useState({});
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const avatarInputRef = useRef(null);
+  const [overview, setOverview] = useState({
+    campaigns: [], invitesSent: 0, savedCount: 0, recommended: [], activity: [], matchedOnProfile: false, loading: true,
+  });
 
   // Applications don't carry the applying creator's name/niche directly --
   // joined through profiles, client-side (same pattern used for campaigns
@@ -225,6 +227,112 @@ export default function Dashboard() {
       active = false;
     };
   }, [user]);
+
+  // Everything the page shows about this brand, in one pass. Counts come from
+  // the rows themselves rather than a count query because the same rows are
+  // needed for the campaign table and the activity feed anyway.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      const [{ data: campaignRows }, { data: savedRows }, { data: creatorRows }] = await Promise.all([
+        supabase.from("campaigns").select("*").eq("brand_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("saved_profiles").select("saved_profile_id").eq("owner_id", user.id),
+        supabase.from("profiles").select(PROFILE_COLUMNS).eq("role", "creator"),
+      ]);
+      const campaigns = campaignRows ?? [];
+      const campaignIds = campaigns.map((c) => c.id);
+      const campaignNameById = Object.fromEntries(campaigns.map((c) => [c.id, c.name]));
+
+      // Invitations carry campaign_id, not brand_id, so "sent by this brand"
+      // means "attached to one of this brand's campaigns".
+      let invitesSent = 0;
+      let appRows = [];
+      if (campaignIds.length > 0) {
+        const [{ data: invites }, { data: apps }] = await Promise.all([
+          supabase.from("invitations").select("id").in("campaign_id", campaignIds),
+          supabase
+            .from("applications")
+            .select("id, campaign_id, creator_id, status, created_at")
+            .in("campaign_id", campaignIds)
+            .order("created_at", { ascending: false }),
+        ]);
+        invitesSent = (invites ?? []).length;
+        appRows = apps ?? [];
+      }
+
+      const appCountByCampaign = appRows.reduce((acc, a) => {
+        acc[a.campaign_id] = (acc[a.campaign_id] ?? 0) + 1;
+        return acc;
+      }, {});
+
+      const creators = creatorRows ?? [];
+      const creatorsById = Object.fromEntries(creators.map((c) => [c.id, c]));
+      const scored = creators.map((c) => ({ creator: c, score: recommendationScore(c, profile) }));
+      const matchedOnProfile = scored.some(({ score }) => score > 0);
+      const recommended = scored
+        .sort((a, b) => b.score - a.score || combinedFollowers(b.creator) - combinedFollowers(a.creator))
+        .slice(0, 6)
+        .map(({ creator }) => creator);
+
+      // Real activity: who applied to what, and when. The old feed invented a
+      // campaign milestone and a login location, neither of which the app
+      // tracks -- applications are the one thing that genuinely happens here.
+      const activity = appRows.slice(0, 6).map((a) => ({
+        id: a.id,
+        title: creatorsById[a.creator_id]?.name || "A creator",
+        detail: `Applied to ${campaignNameById[a.campaign_id] || "one of your campaigns"}`,
+        time: formatRelativeTime(a.created_at),
+        dot: a.status === "pending" ? appColors.primary : appColors.border,
+        dim: a.status !== "pending",
+      }));
+
+      if (!active) return;
+      setOverview({
+        campaigns, invitesSent, savedCount: (savedRows ?? []).length,
+        recommended, activity, matchedOnProfile, loading: false,
+      });
+      setCampaignAppCounts(appCountByCampaign);
+    })();
+    return () => { active = false; };
+  }, [user, profile]);
+
+  // Brands had no way to set a profile picture at all -- the creator side has
+  // had one since Edit Profile existed. Uploads straight through rather than
+  // sitting behind a modal, because there is exactly one field to change.
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // so the same file can be picked again after an error
+    if (!file || !user) return;
+    setAvatarError("");
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError("Image must be under 5MB.");
+      return;
+    }
+    setAvatarUploading(true);
+    const path = `${user.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file);
+    if (uploadError) {
+      setAvatarUploading(false);
+      setAvatarError("Couldn't upload that photo. Please try again.");
+      return;
+    }
+    const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    const { error: saveError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: publicUrlData.publicUrl })
+      .eq("id", user.id);
+    setAvatarUploading(false);
+    if (saveError) {
+      setAvatarError("Uploaded, but couldn't save it to your profile.");
+      return;
+    }
+    await refreshProfile();
+  };
 
   const toggleSaveApplication = (id) => {
     setSavedApplications((prev) => {
@@ -311,20 +419,49 @@ export default function Dashboard() {
             Welcome back, {profile?.name || "there"} <span style={{ marginLeft: 4 }}>👋</span>
           </h1>
           <p style={{ color: "white", opacity: 0.9, fontSize: 18, lineHeight: "28px", maxWidth: 576, margin: "8px 0 0 0" }}>
-            Your campaigns are performing 12% better this week. You have {applications.length} new creator application{applications.length === 1 ? "" : "s"} waiting for review.
+            {/* Claimed campaigns were "performing 12% better this week". There
+                is no performance data on the platform at all -- no reach, no
+                impressions, no week-over-week anything -- so the number could
+                only ever have been decoration on a sentence about applications. */}
+            {applications.length > 0
+              ? `You have ${applications.length} new creator application${applications.length === 1 ? "" : "s"} waiting for review.`
+              : "No applications waiting for review right now."}
           </p>
         </div>
 
         <div className="kollab-dashboard-stats-row" style={{ display: "flex", gap: 24 }}>
-          {STATS.map((stat) => (
-            <StatCard key={stat.label} stat={stat.label === "New KOL Applications" ? { ...stat, value: String(applications.length) } : stat} />
+          {[
+            { label: "Active Campaigns", value: overview.campaigns.filter((c) => c.status === "active").length, badge: "Live now", badgeColor: appColors.grayLight, iconBg: STAT_ICON_BG.campaigns },
+            { label: "Campaign Invites Sent", value: overview.invitesSent, badge: "All time", badgeColor: appColors.grayLight, iconBg: STAT_ICON_BG.invites },
+            { label: "New KOL Applications", value: applications.length, badge: applications.length > 0 ? "Review now" : "Nothing pending", badgeColor: applications.length > 0 ? appColors.primary : appColors.grayLight, iconBg: STAT_ICON_BG.applications },
+            { label: "Saved Creators", value: overview.savedCount, badge: "Active list", badgeColor: appColors.grayLight, iconBg: STAT_ICON_BG.saved },
+          ].map((stat) => (
+            <StatCard key={stat.label} stat={{ ...stat, value: overview.loading ? "—" : String(stat.value) }} />
           ))}
         </div>
 
         <div className="kollab-dashboard-split" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 32 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
             <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", padding: 32, textAlign: "center" }}>
-              <div style={{ width: 96, height: 96, borderRadius: 16, background: "#e2e8f0", margin: "0 auto 16px auto", boxShadow: "0 0 0 4px rgba(60,107,237,0.2)" }} />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                aria-label={profile?.avatar_url ? "Change profile picture" : "Upload a profile picture"}
+                style={{ width: 96, height: 96, borderRadius: 16, background: "#e2e8f0", margin: "0 auto 16px auto", boxShadow: "0 0 0 4px rgba(60,107,237,0.2)", border: "none", padding: 0, overflow: "hidden", cursor: avatarUploading ? "wait" : "pointer", display: "block", position: "relative" }}
+              >
+                <AvatarImage
+                  url={profile?.avatar_url}
+                  size="100%"
+                  radius={16}
+                  fallback={<span style={{ fontWeight: 700, color: appColors.grayLight, fontSize: 30 }}>{(profile?.company_name || profile?.name || "?").charAt(0).toUpperCase()}</span>}
+                />
+                <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.55)", color: "white", fontSize: 10, fontWeight: 700, padding: "3px 0", letterSpacing: 0.3 }}>
+                  {avatarUploading ? "UPLOADING…" : profile?.avatar_url ? "CHANGE" : "UPLOAD"}
+                </span>
+              </button>
+              <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} style={{ display: "none" }} />
+              {avatarError && <div style={{ color: "#ba1a1a", fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{avatarError}</div>}
               <div style={{ fontWeight: 600, color: appColors.navy, fontSize: 24, letterSpacing: -0.24 }}>{profile?.company_name || profile?.name || "Your Company"}</div>
               <span style={{ display: "inline-block", marginTop: 8, color: appColors.primary, fontWeight: 600, fontSize: 14 }}>{profile?.industry || "Industry not set"}</span>
               <div style={{ borderTop: `1px solid ${appColors.border}`, marginTop: 16, paddingTop: 17, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -333,19 +470,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", padding: 33, display: "flex", flexDirection: "column", gap: 24 }}>
-              <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>Connected Accounts</div>
-              <div style={{ background: appColors.primaryLighter, border: `2px solid rgba(21,80,211,0.2)`, borderRadius: 12, padding: 16, display: "flex", gap: 12, alignItems: "center" }}>
-                <InstagramLogo />
-                <span style={{ fontWeight: 600, color: appColors.navy, fontSize: 14, flex: 1 }}>Instagram</span>
-                <span style={{ color: appColors.primary, fontWeight: 700, fontSize: 12 }}>Connected</span>
-              </div>
-              <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", gap: 12, alignItems: "center" }}>
-                <TikTokLogo />
-                <span style={{ fontWeight: 600, color: appColors.navy, fontSize: 14, flex: 1 }}>TikTok</span>
-                <span style={{ color: appColors.grayLight, fontWeight: 700, fontSize: 12 }}>Connect</span>
-              </div>
-            </div>
+            {/* A "Connected Accounts" card sat here claiming Instagram was
+                connected and offering to connect TikTok. Neither did anything,
+                and neither should: connecting a social account is how a
+                CREATOR gets their follower count verified. A brand has no
+                follower count to verify, so the card is gone rather than
+                relabelled -- the equivalent on the creator side is real and
+                does real work. */}
           </div>
 
           <div style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, boxShadow: "0px 10px 40px -10px rgba(21,80,211,0.08)", overflow: "hidden", minWidth: 0 }}>
@@ -365,22 +496,33 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {CAMPAIGNS.map((c) => (
-                    <tr key={c.name} style={{ borderBottom: `1px solid ${appColors.border}` }}>
+                  {overview.campaigns.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: "32px", textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+                        {overview.loading ? "Loading campaigns…" : "No campaigns yet — create one to start receiving applications."}
+                      </td>
+                    </tr>
+                  ) : overview.campaigns.map((c) => {
+                    const meta = CAMPAIGN_STATUS_META[c.status] ?? CAMPAIGN_STATUS_META.closed;
+                    const nicheStyle = NICHE_STYLES[c.niche] ?? { bg: "#e5eeff", color: "#1550d3" };
+                    const apps = campaignAppCounts[c.id] ?? 0;
+                    return (
+                    <tr key={c.id} style={{ borderBottom: `1px solid ${appColors.border}` }}>
                       <td style={{ padding: "20px 32px", fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{c.name}</td>
                       <td style={{ padding: "20px 32px" }}>
-                        <span style={{ background: c.nicheBg, color: c.nicheColor, fontWeight: 700, fontSize: 10, borderRadius: 9999, padding: "2.5px 12px", textTransform: "uppercase" }}>{c.niche}</span>
+                        {c.niche && <span style={{ background: nicheStyle.bg, color: nicheStyle.color, fontWeight: 700, fontSize: 10, borderRadius: 9999, padding: "2.5px 12px", textTransform: "uppercase" }}>{c.niche}</span>}
                       </td>
-                      <td style={{ padding: "20px 32px", color: appColors.navy, fontSize: 16 }}>{c.budget}</td>
-                      <td style={{ padding: "20px 32px", color: appColors.navy, fontSize: 14 }}>+{c.apps}</td>
+                      <td style={{ padding: "20px 32px", color: appColors.navy, fontSize: 16, whiteSpace: "nowrap" }}>{campaignBudget(c)}</td>
+                      <td style={{ padding: "20px 32px", color: appColors.navy, fontSize: 14 }}>{apps}</td>
                       <td style={{ padding: "20px 32px" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: c.statusColor, fontWeight: 700, fontSize: 14 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 9999, background: c.dotColor }} />
-                          {c.status}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: meta.color, fontWeight: 700, fontSize: 14 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 9999, background: meta.dot }} />
+                          {meta.label}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -391,12 +533,34 @@ export default function Dashboard() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
             <div>
               <h2 style={{ fontWeight: 600, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Recommended Creators</h2>
-              <p style={{ color: appColors.grayLight, fontSize: 14, margin: "4px 0 0 0" }}>Based on your industry and recent searches</p>
+              <p style={{ color: appColors.grayLight, fontSize: 14, margin: "4px 0 0 0" }}>
+                {/* Claimed "recent searches" as an input. Search history isn't
+                    stored anywhere, so this now names only what it actually
+                    matched on -- and says so plainly when it matched nothing. */}
+                {overview.matchedOnProfile
+                  ? "Matched to your industry and location"
+                  : "Set your industry and location in Settings to get matched creators"}
+              </p>
             </div>
           </div>
           <div className="kollab-scroll-row" style={{ display: "flex", gap: 24, overflowX: "auto", paddingBottom: 8 }}>
-            {RECOMMENDED_CREATORS.map((c) => (
-              <CreatorCard key={c.name} creator={c} />
+            {overview.loading ? (
+              <div style={{ color: appColors.grayLight, fontSize: 14, padding: 8 }}>Loading creators…</div>
+            ) : overview.recommended.length === 0 ? (
+              <div style={{ color: appColors.grayLight, fontSize: 14, padding: 8 }}>No creators on Kollab yet.</div>
+            ) : overview.recommended.map((c) => (
+              <CreatorCard
+                key={c.id}
+                creator={{
+                  id: c.id,
+                  name: c.name || "Unnamed creator",
+                  role: (c.niche || []).join(" & ") || c.location || "Creator",
+                  followers: formatCount(combinedFollowers(c)) ?? "—",
+                  engagement: formatEngagement(c.engagement_rate) ?? "—",
+                  initial: (c.name || "?").charAt(0).toUpperCase(),
+                  avatarUrl: c.avatar_url,
+                }}
+              />
             ))}
           </div>
         </div>
@@ -444,8 +608,13 @@ export default function Dashboard() {
         <h3 style={{ color: appColors.primary, fontSize: 24, letterSpacing: -0.24, fontWeight: 600, margin: 0 }}>Activity</h3>
         <p style={{ color: appColors.grayLight, fontSize: 12, letterSpacing: 0.24, fontWeight: 600, margin: "0 0 28px 0" }}>Recent Updates</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {ACTIVITY.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: 16, opacity: item.dim ? 0.7 : 1 }}>
+          {!overview.loading && overview.activity.length === 0 && (
+            <div style={{ color: appColors.grayLight, fontSize: 13 }}>
+              Nothing yet. Applications to your campaigns will show up here.
+            </div>
+          )}
+          {overview.activity.map((item) => (
+            <div key={item.id} style={{ display: "flex", gap: 16, opacity: item.dim ? 0.7 : 1 }}>
               <div style={{ width: 8, height: 8, borderRadius: 9999, background: item.dot, marginTop: 8, flexShrink: 0 }} />
               <div>
                 <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 14 }}>{item.title}</div>
