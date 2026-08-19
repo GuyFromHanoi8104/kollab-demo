@@ -139,7 +139,7 @@ function NavLink({ to, label, Icon, active, onNavigate }) {
 // role: defaults to the real logged-in account's role; pass explicitly only
 // to override (MyProfile always wants the creator nav regardless of account).
 export default function AppSidebar({ activeItem, role }) {
-  const { isLoggedIn, role: authRole } = useAuth();
+  const { role: authRole } = useAuth();
   const resolvedRole = role ?? authRole;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -246,16 +246,11 @@ export default function AppSidebar({ activeItem, role }) {
             <span style={{ fontWeight: 400, color: appColors.gray, fontSize: 16 }}>Feedback</span>
           </button>
 
-          {/* Static placeholder -- wire to real account/usage data later */}
-          {isLoggedIn && (
-            <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              <span style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24 }}>PRO PLAN</span>
-              <div style={{ background: appColors.border, height: 6, borderRadius: 9999, overflow: "hidden" }}>
-                <div style={{ background: appColors.primary, height: "100%", width: "75%" }} />
-              </div>
-              <span style={{ color: appColors.gray, fontSize: 11, fontStyle: "italic" }}>750 of 1000 searches used</span>
-            </div>
-          )}
+          {/* The PRO PLAN usage meter lived here -- "750 of 1000 searches
+              used" over a 75%-filled bar. There are no plans, no quotas and no
+              search metering, so every part of it was invented. Removed rather
+              than relabelled: a usage meter has nothing honest to show until
+              there is usage to measure. */}
         </div>
       </aside>
 
