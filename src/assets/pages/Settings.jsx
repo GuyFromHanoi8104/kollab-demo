@@ -3,19 +3,8 @@ import { useNavigate } from "react-router-dom";
 import AppSidebar from "../components/AppSidebar";
 import AppTopBar, { Breadcrumb } from "../components/AppTopBar";
 import { appColors } from "../components/appColors";
-import UpgradeModal from "../components/UpgradeModal";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../../supabaseClient";
-import { formatVND } from "../../utils/currency";
-
-// Pro Plan price is an illustrative placeholder, not a verified rate --
-// matches the price shown in UpgradeModal.jsx.
-const PRO_PLAN_PRICE = formatVND(1200000);
-const MOCK_INVOICES = [
-  { date: "Jul 1, 2026", amount: PRO_PLAN_PRICE, status: "Paid" },
-  { date: "Jun 1, 2026", amount: PRO_PLAN_PRICE, status: "Paid" },
-  { date: "May 1, 2026", amount: PRO_PLAN_PRICE, status: "Paid" },
-];
 
 function CloseIcon() {
   return (
@@ -174,26 +163,19 @@ function ChangePasswordModal({ onClose }) {
   );
 }
 
+// Showed a "Visa •••• 4242" payment method and three Paid invoices, none of
+// which existed -- Kollab takes no payments and stores no cards. A fabricated
+// card number on a billing screen is the worst place to invent something,
+// because it's exactly where someone checks what they've been charged.
 function BillingModal({ onClose }) {
   return (
     <ModalShell title="Billing & Invoices" onClose={onClose}>
-      <div>
-        <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24, marginBottom: 8 }}>PAYMENT METHOD</div>
-        <div style={{ background: appColors.bg, border: `1px solid ${appColors.border}`, borderRadius: 10, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 14, color: appColors.navy }}>Visa •••• 4242</span>
-          <span style={{ fontSize: 12, color: appColors.grayLight }}>Expires 08/28</span>
-        </div>
-      </div>
-      <div>
-        <div style={{ fontWeight: 700, color: appColors.gray, fontSize: 12, letterSpacing: 0.24, marginBottom: 8 }}>INVOICE HISTORY</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {MOCK_INVOICES.map((inv) => (
-            <div key={inv.date} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${appColors.border}` }}>
-              <span style={{ fontSize: 14, color: appColors.navy }}>{inv.date}</span>
-              <span style={{ fontSize: 14, color: appColors.gray }}>{inv.amount}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#16a34a" }}>{inv.status}</span>
-            </div>
-          ))}
+      <div style={{ background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 12, padding: 28, textAlign: "center", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 15 }}>Nothing to show yet</div>
+        <div style={{ color: appColors.grayLight, fontSize: 13, lineHeight: "20px" }}>
+          Kollab is free while we're getting started, so there's no payment
+          method on file and no invoices. This is where they'll appear once paid
+          plans launch.
         </div>
       </div>
     </ModalShell>
@@ -238,7 +220,6 @@ function DeleteAccountModal({ onClose, onConfirmed, deleting, error }) {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [billingModalOpen, setBillingModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -444,14 +425,18 @@ export default function Settings() {
           </SettingsCard>
 
           <SettingsCard title="Plan & Billing">
+            {/* Said "Pro Plan / 750 of 1,000 searches used this month" next to
+                an Upgrade button. Kollab is free and unmetered -- there is no
+                Pro Plan to be on and no quota to be near, so all of it was
+                invented. Stated as coming soon instead. */}
             <div style={{ background: appColors.primaryLighter, borderRadius: 12, padding: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div>
-                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>Pro Plan</div>
-                <div style={{ color: appColors.grayLight, fontSize: 13 }}>750 of 1,000 searches used this month</div>
+                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>Free while we're getting started</div>
+                <div style={{ color: appColors.grayLight, fontSize: 13 }}>Paid plans are coming soon — nothing to pay for yet.</div>
               </div>
-              <button type="button" onClick={() => setUpgradeModalOpen(true)} style={{ background: appColors.primary, border: "none", borderRadius: 12, padding: "10px 20px", fontWeight: 700, color: "white", fontSize: 14, cursor: "pointer" }}>
-                Upgrade Plan
-              </button>
+              <span style={{ background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 12, padding: "10px 20px", fontWeight: 700, color: appColors.grayLight, fontSize: 14 }}>
+                Coming soon
+              </span>
             </div>
             <button type="button" onClick={() => setBillingModalOpen(true)} style={{ background: "none", border: "none", color: appColors.primary, fontWeight: 700, fontSize: 14, cursor: "pointer", padding: 0, textAlign: "left" }}>
               Manage Billing & Invoices
@@ -472,7 +457,6 @@ export default function Settings() {
         </div>
       </main>
 
-      {upgradeModalOpen && <UpgradeModal onClose={() => setUpgradeModalOpen(false)} />}
       {passwordModalOpen && <ChangePasswordModal onClose={() => setPasswordModalOpen(false)} />}
       {billingModalOpen && <BillingModal onClose={() => setBillingModalOpen(false)} />}
       {deleteModalOpen && (

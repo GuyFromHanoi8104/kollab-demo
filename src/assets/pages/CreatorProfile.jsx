@@ -10,15 +10,10 @@ import { supabase } from "../../supabaseClient";
 import { PROFILE_COLUMNS } from "../../utils/profileColumns";
 import { formatVND } from "../../utils/currency";
 import { combinedFollowers, formatCount, formatEngagement, hasAnyStats } from "../../utils/creatorStats";
+import { rankBySimilarity } from "../../utils/creatorSimilarity";
 import AvatarImage from "../components/AvatarImage";
 
 
-const SIMILAR_CREATORS = [
-  { name: "Tram Anh", niche: "Minimal Fashion", followers: "150K" },
-  { name: "Khanh Vy", niche: "Beauty & Makeup", followers: "312K" },
-  { name: "Duy Khanh", niche: "Lifestyle Vlog", followers: "98K" },
-  { name: "Minh Ha", niche: "Eco-Beauty", followers: "205K" },
-];
 
 function formatDate(dateStr) {
   if (!dateStr) return "No deadline";
@@ -84,14 +79,6 @@ function CloseIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <path d="M2 2l14 14M16 2L2 16" stroke={appColors.gray} strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-function EyeIcon({ color }) {
-  return (
-    <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-      <path d="M1 5s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z" stroke={color} strokeWidth="1.1" />
-      <circle cx="7" cy="5" r="1.7" stroke={color} strokeWidth="1.1" />
     </svg>
   );
 }
@@ -312,6 +299,7 @@ export default function CreatorProfile() {
   const [portfolioFilter, setPortfolioFilter] = useState("All Content");
   const [linkCopied, setLinkCopied] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
+  const [similar, setSimilar] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -332,6 +320,27 @@ export default function CreatorProfile() {
       active = false;
     };
   }, [id]);
+
+  // Real "similar creators", scored on shared niches and location. Runs after
+  // the profile loads because it needs that profile's niches to compare
+  // against. Only creators that genuinely overlap are kept -- padding the row
+  // with unrelated people to fill four slots would make the heading a lie.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!profile) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select(PROFILE_COLUMNS)
+        .eq("role", "creator")
+        .neq("id", profile.id);
+      if (!active) return;
+      setSimilar(rankBySimilarity(data ?? [], profile, { limit: 4, getFollowers: combinedFollowers }));
+    })();
+    return () => {
+      active = false;
+    };
+  }, [profile]);
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -709,24 +718,46 @@ export default function CreatorProfile() {
           </div>
         </div>
 
-        <div style={{ maxWidth: 1280, marginTop: 32, paddingBottom: 48, display: "flex", flexDirection: "column", gap: 32 }}>
-          <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Similar Creators You Might Like</h3>
-          <div className="kollab-creator-profile-similar-row" style={{ display: "flex", gap: 24 }}>
-            {SIMILAR_CREATORS.map((c) => (
-              <div key={c.name} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 21, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{ border: `2px solid ${appColors.bg}`, borderRadius: 16 }}>
-                  <AvatarPlaceholder size={80} radius={14} label={c.name[0]} />
-                </div>
-                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16, marginTop: 12 }}>{c.name}</div>
-                <div style={{ color: appColors.grayLight, fontSize: 12 }}>{c.niche}</div>
-                <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 8 }}>
-                  <EyeIcon color={appColors.navy} />
-                  <span style={{ color: appColors.navy, fontWeight: 700, fontSize: 14 }}>{c.followers}</span>
-                </div>
-              </div>
-            ))}
+        {/* Hidden entirely when nothing genuinely matches, rather than shown
+            empty -- with only a handful of creators on the platform, an empty
+            row under this heading looks broken. */}
+        {similar.length > 0 && (
+          <div style={{ maxWidth: 1280, marginTop: 32, paddingBottom: 48, display: "flex", flexDirection: "column", gap: 32 }}>
+            <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Similar Creators You Might Like</h3>
+            <div className="kollab-creator-profile-similar-row" style={{ display: "flex", gap: 24 }}>
+              {similar.map((c) => {
+                const followers = combinedFollowers(c);
+                return (
+                  <Link
+                    key={c.id}
+                    to={`/creator/${c.id}`}
+                    style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 21, flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, textDecoration: "none" }}
+                  >
+                    <div style={{ border: `2px solid ${appColors.bg}`, borderRadius: 16 }}>
+                      <AvatarPlaceholder
+                        size={80}
+                        radius={14}
+                        label={(c.name || "?").charAt(0).toUpperCase()}
+                        avatarUrl={c.avatar_url}
+                      />
+                    </div>
+                    <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16, marginTop: 12, textAlign: "center" }}>{c.name || "Unnamed creator"}</div>
+                    <div style={{ color: appColors.grayLight, fontSize: 12, textAlign: "center" }}>
+                      {(c.niche || []).join(" · ") || c.location || "—"}
+                    </div>
+                    {/* Followers, not views -- the old card paired an eye icon
+                        with a follower number, which read as view count. */}
+                    {followers != null && (
+                      <div style={{ color: appColors.navy, fontWeight: 700, fontSize: 14, marginTop: 8 }}>
+                        {formatCount(followers)} <span style={{ color: appColors.grayLight, fontWeight: 500, fontSize: 12 }}>followers</span>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </main>
       )}
 
