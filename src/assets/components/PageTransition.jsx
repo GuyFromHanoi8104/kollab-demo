@@ -38,7 +38,14 @@ export default function PageTransition({ children }) {
           to   { opacity: 1; }
         }
         .kollab-page-enter {
-          animation: kollabPageEnter ${DURATION_MS}ms ease-out both;
+          /* No fill-mode. With fill-mode both, the element inherits the 0% keyframe
+             before the animation starts, so the page is INVISIBLE until it
+             runs -- and anywhere it does not run (a backgrounded tab, a
+             browser that skips animations) it stays that way. Without a fill
+             mode the base opacity is 1 and the animation only borrows it on
+             the way in, so the failure mode is "no fade" rather than "blank
+             page". */
+          animation: kollabPageEnter ${DURATION_MS}ms ease-out;
         }
         @media (prefers-reduced-motion: reduce) {
           .kollab-page-enter { animation: none; }
