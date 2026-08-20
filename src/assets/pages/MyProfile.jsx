@@ -49,19 +49,21 @@ const PROFILE_EXTRAS = {
 // AGE_DISTRIBUTION / TOP_LOCATIONS / PLATFORMS used to live here as hardcoded
 // sample figures. Audience insights are out of scope for the MVP and now show
 // an explicit "coming soon" state, and the platform cards read the real
-// profile columns instead. COLLABORATIONS and PORTFOLIO below are still mock;
-// they have no backing tables yet.
-const COLLABORATIONS = [
-  { brand: "Uniqlo VN", campaign: "Winter Essentials Wardrobe", reach: "640K Reach" },
-  { brand: "Shopee Vietnam", campaign: "11.11 Mega Sale Campaign", reach: "980K Reach" },
-];
-
-const PORTFOLIO = [
-  { views: "310K", comments: "18K" },
-  { views: "158K", comments: "7K" },
-  { views: "402K", comments: "26K" },
-  { views: "220K", comments: "12K" },
-];
+// profile columns instead.
+//
+// Recent Collaborations used to list Uniqlo VN and Shopee Vietnam with "640K
+// Reach" and "980K Reach". Neither collaboration happened and Kollab measures
+// no reach at all -- it was a claim of endorsement by two of the largest
+// retailers in Vietnam, on a page a brand reads to decide whether to hire.
+//
+// A real collaboration is a campaign this creator was accepted onto: an
+// accepted application, or an accepted invitation. Reach is simply dropped,
+// because there is no impressions data anywhere on the platform to replace it
+// with.
+//
+// Content Portfolio showed four gradient placeholders captioned with view and
+// comment counts that were equally invented. There is no media table and no
+// upload path, so it states that it is coming rather than faking four posts.
 
 function LocationIcon({ color }) {
   return (
@@ -95,21 +97,8 @@ function ClockIcon({ color }) {
     </svg>
   );
 }
-function EyeIcon({ color }) {
-  return (
-    <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-      <path d="M1 5s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z" stroke={color} strokeWidth="1.1" />
-      <circle cx="7" cy="5" r="1.7" stroke={color} strokeWidth="1.1" />
-    </svg>
-  );
-}
-function CommentIcon({ color }) {
-  return (
-    <svg width="12" height="11" viewBox="0 0 12 11" fill="none">
-      <path d="M1 1h10v7H4l-3 2.5V1Z" stroke={color} strokeWidth="1.1" strokeLinejoin="round" />
-    </svg>
-  );
-}
+// EyeIcon and CommentIcon lived here only to caption the fake portfolio
+// tiles' view and comment counts. Removed with them.
 function ShareIcon({ color }) {
   return (
     <svg width="15" height="17" viewBox="0 0 15 17" fill="none">
@@ -259,6 +248,7 @@ export default function MyProfile() {
   const { user, profile, role, refreshProfile } = useAuth();
   const [applications, setApplications] = useState([]);
   const [invitations, setInvitations] = useState([]);
+  const [collaborations, setCollaborations] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [respondedLog, setRespondedLog] = useState([]);
   const [respondingId, setRespondingId] = useState(null);
@@ -438,12 +428,15 @@ export default function MyProfile() {
       setDataLoading(true);
       const [{ data: appRows }, { data: inviteRows }] = await Promise.all([
         supabase.from("applications").select("*").eq("creator_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("invitations").select("*").eq("creator_id", user.id).eq("status", "pending").order("created_at", { ascending: false }),
+        // Not filtered to pending any more: accepted invitations are
+        // collaborations, and the pending ones are filtered out below.
+        supabase.from("invitations").select("*").eq("creator_id", user.id).order("created_at", { ascending: false }),
       ]);
       const apps = appRows ?? [];
-      const invites = inviteRows ?? [];
+      const allInvites = inviteRows ?? [];
+      const invites = allInvites.filter((i) => i.status === "pending");
 
-      const campaignIds = [...new Set([...apps.map((a) => a.campaign_id), ...invites.map((i) => i.campaign_id)])];
+      const campaignIds = [...new Set([...apps.map((a) => a.campaign_id), ...allInvites.map((i) => i.campaign_id)])];
       const campaignsById = {};
       if (campaignIds.length > 0) {
         const { data: campaignRows } = await supabase.from("campaigns").select("id, name, brand_id, budget_min, budget_max, deadline").in("id", campaignIds);
@@ -491,6 +484,29 @@ export default function MyProfile() {
             deadline: campaign?.deadline ? formatDate(campaign.deadline) : "No deadline",
           };
         })
+      );
+      // One entry per campaign: a creator who was invited and also applied to
+      // the same campaign collaborated once, not twice.
+      const acceptedByCampaign = new Map();
+      for (const row of [...apps, ...allInvites]) {
+        if (row.status !== "accepted") continue;
+        const existing = acceptedByCampaign.get(row.campaign_id);
+        if (!existing || new Date(row.created_at) > new Date(existing.created_at)) {
+          acceptedByCampaign.set(row.campaign_id, row);
+        }
+      }
+      setCollaborations(
+        [...acceptedByCampaign.values()]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .map((row) => {
+            const campaign = campaignsById[row.campaign_id];
+            return {
+              id: row.id,
+              brand: brandNameFor(campaign),
+              campaign: campaign?.name || "Deleted campaign",
+              date: formatDate(row.created_at),
+            };
+          })
       );
       setDataLoading(false);
     })();
@@ -942,31 +958,42 @@ export default function MyProfile() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Recent Collaborations</h3>
-              <div className="kollab-scroll-row" style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
-                {COLLABORATIONS.map((c) => (
-                  <div key={c.brand} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 21, display: "flex", gap: 16, alignItems: "center", minWidth: 280, flexShrink: 0 }}>
-                    <div style={{ background: "#d3e4fe", borderRadius: 12, width: 56, height: 56, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>{c.brand}</div>
-                      <div style={{ color: appColors.grayLight, fontSize: 12 }}>{c.campaign}</div>
-                      <div style={{ color: appColors.primary, fontWeight: 700, fontSize: 12, marginTop: 8 }}>↗ {c.reach}</div>
+              {dataLoading ? (
+                <div style={{ background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 16, padding: 24, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+                  Loading collaborations…
+                </div>
+              ) : collaborations.length === 0 ? (
+                <div style={{ background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 16, padding: 24, textAlign: "center", color: appColors.grayLight, fontSize: 14 }}>
+                  No collaborations yet. Campaigns you're accepted onto will appear here.
+                </div>
+              ) : (
+                <div className="kollab-scroll-row" style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+                  {collaborations.map((c) => (
+                    <div key={c.id} style={{ background: "white", border: `1px solid ${appColors.border}`, borderRadius: 16, padding: 21, display: "flex", gap: 16, alignItems: "center", minWidth: 280, flexShrink: 0 }}>
+                      <div style={{ background: "#d3e4fe", borderRadius: 12, width: 56, height: 56, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: appColors.primary, fontSize: 20 }}>
+                        {c.brand.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 16 }}>{c.brand}</div>
+                        <div style={{ color: appColors.grayLight, fontSize: 12 }}>{c.campaign}</div>
+                        {/* Reach used to sit here. Kollab measures none, so the
+                            date is what can honestly be shown instead. */}
+                        <div style={{ color: appColors.gray, fontSize: 12, marginTop: 8 }}>{c.date}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
               <h3 style={{ fontWeight: 700, color: appColors.navy, fontSize: 24, letterSpacing: -0.24, margin: 0 }}>Content Portfolio</h3>
-              <div className="kollab-my-profile-portfolio" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-                {PORTFOLIO.map((item, i) => (
-                  <div key={i} style={{ aspectRatio: "9/16", background: "linear-gradient(135deg, #cbd5e1, #94a3b8)", border: `1px solid ${appColors.border}`, borderRadius: 16, position: "relative", display: "flex", alignItems: "flex-end", padding: 16 }}>
-                    <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}><EyeIcon color="white" /><span style={{ color: "white", fontSize: 12 }}>{item.views}</span></div>
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}><CommentIcon color="white" /><span style={{ color: "white", fontSize: 12 }}>{item.comments}</span></div>
-                    </div>
-                  </div>
-                ))}
+              <div style={{ background: appColors.bg, border: `1px dashed ${appColors.border}`, borderRadius: 16, padding: 32, textAlign: "center", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontWeight: 700, color: appColors.navy, fontSize: 15 }}>Content portfolio is coming soon</div>
+                <div style={{ color: appColors.grayLight, fontSize: 13, lineHeight: "20px" }}>
+                  You'll be able to showcase your best posts here so brands can see
+                  your work without leaving Kollab. Not part of the current release.
+                </div>
               </div>
             </div>
           </div>
