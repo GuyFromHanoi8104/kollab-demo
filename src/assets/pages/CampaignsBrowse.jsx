@@ -31,11 +31,14 @@ function budgetCeiling(campaign) {
   return campaign.budget_max ?? campaign.budget_min ?? null;
 }
 
-const STATS = [
-  { value: "1,200+", label: "ACTIVE CREATORS" },
-  { value: "150+", label: "ACTIVE CAMPAIGNS" },
-  { value: "80+", label: "PARTNER BRANDS" },
-];
+// A "1,200+ ACTIVE CREATORS / 150+ ACTIVE CAMPAIGNS / 80+ PARTNER BRANDS" band
+// used to sit above the footer. None of those numbers were real, and none were
+// close: the platform has single digits of each.
+//
+// Removed rather than replaced with the true counts. A marketplace advertising
+// "4 ACTIVE CREATORS" argues against itself far better than silence does, and
+// the honest version of a social-proof band is one you add when the proof
+// exists. Real counts are a query away whenever the numbers are worth showing.
 
 function formatBudget(campaign) {
   const { budget_min: min, budget_max: max } = campaign;
@@ -531,10 +534,6 @@ export default function CampaignsBrowse() {
           .kollab-campaigns-cta h2 {
             font-size: 32px !important;
           }
-          .kollab-campaigns-stats {
-            flex-direction: column !important;
-            gap: 32px !important;
-          }
         }
       `}</style>
 
@@ -737,15 +736,6 @@ export default function CampaignsBrowse() {
           </div>
         </div>
       )}
-
-      <div className="kollab-campaigns-stats" style={{ maxWidth: 1280, margin: "0 auto", padding: "65px 24px", display: "flex", gap: 64, justifyContent: "center", borderTop: `1px solid ${colors.border}`, borderBottom: `1px solid ${colors.border}` }}>
-        {STATS.map((stat) => (
-          <div key={stat.label} style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ color: colors.blue, fontWeight: 800, fontSize: 48 }}>{stat.value}</div>
-            <div style={{ color: colors.gray, fontWeight: 700, fontSize: 14, letterSpacing: 2.8, textTransform: "uppercase", marginTop: 12 }}>{stat.label}</div>
-          </div>
-        ))}
-      </div>
 
       <Footer />
 
